@@ -689,6 +689,7 @@ function startApp() {
     }
     $('warnings').replaceChildren(...request.warnings.map(text => paragraph(text)));
     const sentAt = Date.now();
+    const sent = copyDraft(draft);
     inFlight = new AbortController();
     setSending(true);
     const started = performance.now();
@@ -697,11 +698,11 @@ function startApp() {
       const bytes = new Uint8Array(await response.arrayBuffer());
       const elapsed = performance.now() - started;
       showResponse(response, bytes, elapsed);
-      remember(sentAt, { status: response.status });
+      remember(sent, sentAt, { status: response.status });
     } catch (error) {
       const message = explainFetchError(error, request.url, location.protocol);
       showError(message);
-      if (error.name !== 'AbortError') remember(sentAt, { error: message });
+      if (error.name !== 'AbortError') remember(sent, sentAt, { error: message });
     } finally {
       inFlight = null;
       setSending(false);
@@ -740,8 +741,9 @@ function startApp() {
     $('response-error').textContent = message;
   }
 
-  function remember(sentAt, outcome) {
-    history = addToHistory(history, historyEntry(draft, outcome, sentAt));
+  // The draft as it was when Send was pressed: the user may edit the editor while a slow request is in flight.
+  function remember(sent, sentAt, outcome) {
+    history = addToHistory(history, historyEntry(sent, outcome, sentAt));
     saveHistory(history);
     showHistory();
   }

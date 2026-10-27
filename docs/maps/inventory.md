@@ -77,7 +77,7 @@ Building the URL a request is sent to, from the typed address and the query-para
 
 The page: DOM, fetch(), localStorage. Thin; decisions belong in core.
 
-### `src/ui/app.js` (237 lines)
+### `src/ui/app.js` (239 lines)
 
 The page: wires the editor, the send button, the response panel and the history sidebar together.
 
