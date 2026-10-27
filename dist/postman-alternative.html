@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Relais</title>
+<title>A Postman Alternative</title>
 <style>
 :root {
   --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc;
@@ -85,7 +85,7 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
 <div class="layout">
   <aside>
     <header>
-      <h1>Relais</h1>
+      <h1>A Postman Alternative</h1>
       <p class="tagline">An HTTP client in one file.</p>
     </header>
     <div class="history-tools">
@@ -392,13 +392,13 @@ function copyDraft(draft) {
 
 // ---- src/core/export-format.js ----
 /**
- * The history export file: the one format Relais promises to read back, so a file exported today still
+ * The history export file: the one format this app promises to read back, so a file exported today still
  * imports after an upgrade. EXPORT_FIELDS is both the validator and the source of the export-format map;
  * a field removed from it is refused by the format guard once it has shipped.
  */
 
 /** The value of the file's "format" field; a file without it is not one of ours. */
-const EXPORT_FORMAT = 'relais-history';
+const EXPORT_FORMAT = 'postman-alternative';
 
 /** The newest version this code writes. Older versions must keep importing. */
 const EXPORT_VERSION = 1;
@@ -464,11 +464,11 @@ function parseExport(text) {
   try {
     file = JSON.parse(text);
   } catch {
-    throw new Error('This file is not JSON, so it is not a Relais export.');
+    throw new Error('This file is not JSON, so it is not an export from this app.');
   }
-  if (!file || file.format !== EXPORT_FORMAT) throw new Error('This JSON file is not a Relais history export.');
+  if (!file || file.format !== EXPORT_FORMAT) throw new Error('This JSON file is not an export from A Postman Alternative.');
   if (typeof file.version === 'number' && file.version > EXPORT_VERSION) {
-    throw new Error('This file was written by a newer Relais (format version ' + file.version + '). Update Relais to import it.');
+    throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
   }
   for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
   return file.history;
@@ -512,9 +512,9 @@ function jsonType(value) {
  */
 
 /** Storage key of the draft in the editor. */
-const DRAFT_KEY = 'relais.draft.v1';
+const DRAFT_KEY = 'postman-alternative.draft.v1';
 /** Storage key of the history list. */
-const HISTORY_KEY = 'relais.history.v1';
+const HISTORY_KEY = 'postman-alternative.history.v1';
 
 /** The saved draft, or null when there is none or storage is unavailable. */
 function loadDraft() {
@@ -774,7 +774,7 @@ function startApp() {
     const text = serializeHistory(history, new Date().toISOString());
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-    link.download = 'relais-history-' + new Date().toISOString().slice(0, 10) + '.json';
+    link.download = 'postman-alternative-' + new Date().toISOString().slice(0, 10) + '.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   });

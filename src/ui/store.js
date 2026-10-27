@@ -5,9 +5,9 @@
  */
 
 /** Storage key of the draft in the editor. */
-const DRAFT_KEY = 'relais.draft.v1';
+const DRAFT_KEY = 'postman-alternative.draft.v1';
 /** Storage key of the history list. */
-const HISTORY_KEY = 'relais.history.v1';
+const HISTORY_KEY = 'postman-alternative.history.v1';
 
 /** The saved draft, or null when there is none or storage is unavailable. */
 export function loadDraft() {

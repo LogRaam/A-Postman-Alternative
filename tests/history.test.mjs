@@ -35,10 +35,10 @@ describe('The export file', () => {
   });
   test('refuses a file that is not JSON, or JSON that is not ours', () => {
     assert.throws(() => parseExport('nope'), /not JSON/);
-    assert.throws(() => parseExport('{"format":"other"}'), /not a Relais history export/);
+    assert.throws(() => parseExport('{"format":"other"}'), /not an export from A Postman Alternative/);
   });
   test('refuses a file from a newer version and says to update', () => {
-    assert.throws(() => parseExport(JSON.stringify({ format: 'relais-history', version: EXPORT_VERSION + 1 })), /newer Relais/);
+    assert.throws(() => parseExport(JSON.stringify({ format: 'postman-alternative', version: EXPORT_VERSION + 1 })), /newer version of this app/);
   });
   test('names the first damaged field', () => {
     const file = JSON.parse(serializeHistory([sample('a', 1)], 'now'));

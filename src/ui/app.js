@@ -151,7 +151,7 @@ export function startApp() {
     const text = serializeHistory(history, new Date().toISOString());
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
-    link.download = 'relais-history-' + new Date().toISOString().slice(0, 10) + '.json';
+    link.download = 'postman-alternative-' + new Date().toISOString().slice(0, 10) + '.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   });

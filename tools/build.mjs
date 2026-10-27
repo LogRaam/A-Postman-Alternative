@@ -1,4 +1,4 @@
-// Builds dist/relais.html: every module under src/ joined into one inline script, in import order.
+// Builds dist/postman-alternative.html: every module under src/ joined into one inline script, in import order.
 //
 // The modules are plain ES modules so node:test can import them. Joining them works by deleting the import
 // lines and the "export " keywords, so all top-level names end up in ONE scope. The build therefore refuses,
@@ -12,9 +12,9 @@ import { ROOT, listFiles, readText, readModule } from './source.mjs';
 
 export const ENTRY_FILE = 'src/ui/app.js';
 export const ENTRY_CALL = 'startApp();';
-export const OUTPUT_FILE = 'dist/relais.html';
+export const OUTPUT_FILE = 'dist/postman-alternative.html';
 
-/** The text of dist/relais.html, built from the sources. Throws with every problem found. */
+/** The text of dist/postman-alternative.html, built from the sources. Throws with every problem found. */
 export function buildHtml(root = ROOT) {
   const paths = listFiles('src', '.js', root);
   const modules = new Map(paths.map(path => [path, readModule(path, root)]));

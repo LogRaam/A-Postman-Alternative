@@ -1,11 +1,11 @@
 /**
- * The history export file: the one format Relais promises to read back, so a file exported today still
+ * The history export file: the one format this app promises to read back, so a file exported today still
  * imports after an upgrade. EXPORT_FIELDS is both the validator and the source of the export-format map;
  * a field removed from it is refused by the format guard once it has shipped.
  */
 
 /** The value of the file's "format" field; a file without it is not one of ours. */
-export const EXPORT_FORMAT = 'relais-history';
+export const EXPORT_FORMAT = 'postman-alternative';
 
 /** The newest version this code writes. Older versions must keep importing. */
 export const EXPORT_VERSION = 1;
@@ -71,11 +71,11 @@ export function parseExport(text) {
   try {
     file = JSON.parse(text);
   } catch {
-    throw new Error('This file is not JSON, so it is not a Relais export.');
+    throw new Error('This file is not JSON, so it is not an export from this app.');
   }
-  if (!file || file.format !== EXPORT_FORMAT) throw new Error('This JSON file is not a Relais history export.');
+  if (!file || file.format !== EXPORT_FORMAT) throw new Error('This JSON file is not an export from A Postman Alternative.');
   if (typeof file.version === 'number' && file.version > EXPORT_VERSION) {
-    throw new Error('This file was written by a newer Relais (format version ' + file.version + '). Update Relais to import it.');
+    throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
   }
   for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
   return file.history;

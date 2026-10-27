@@ -20,7 +20,7 @@ Turning what fetch() throws into a sentence the user can act on.
 
 ### `src/core/export-format.js` (112 lines)
 
-The history export file: the one format Relais promises to read back, so a file exported today still imports after an upgrade.
+The history export file: the one format this app promises to read back, so a file exported today still imports after an upgrade.
 
 - `EXPORT_FORMAT` const, exported: The value of the file's "format" field; a file without it is not one of ours.
 - `EXPORT_VERSION` const, exported: The newest version this code writes.

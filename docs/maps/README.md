@@ -1,4 +1,4 @@
-# The maps: views of Relais generated from its own source
+# The maps: views of A Postman Alternative generated from its own source
 
 Nothing in this folder is written by hand except this file. Each map is regenerated from the source by
 `tests/maps.test.mjs`, and `npm test` FAILS when a committed map no longer matches the code. The method, and why
@@ -10,12 +10,12 @@ it exists, is explained in the [generated-maps skill](https://github.com/LogRaam
 |---|---|
 | [`inventory.md`](inventory.md) | Does this function or constant already exist, and where? Every module by layer, every top-level declaration with its one-line doc. |
 | [`dependencies.md`](dependencies.md) | Who imports whom? Cycles first, then the layer rule (core never imports ui), then counts, then every edge. |
-| [`rules.md`](rules.md) | What does Relais promise to do? Every test name, by file and `describe` block. |
+| [`rules.md`](rules.md) | What does the app promise to do? Every test name, by file and `describe` block. |
 | [`export-format.md`](export-format.md) | **Contract.** What does a history export file hold? Every field, with its type. |
 
 ## Which checks INFORM, and which BLOCK
 
-**Informing:** the four maps above, and `dist/relais.html` being built from the current sources. They fail, you
+**Informing:** the four maps above, and `dist/postman-alternative.html` being built from the current sources. They fail, you
 read the diff, you regenerate, you commit. Whatever the code says becomes the new truth.
 
 **Blocking:** regenerating does not make these green.
