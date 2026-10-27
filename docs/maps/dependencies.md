@@ -22,31 +22,55 @@ None.
 
 ## Imported by the most modules
 
+- `src/core/draft.js`: 4
+- `src/core/collections.js`: 2
+- `src/core/history.js`: 2
+- `src/core/ids.js`: 2
 - `src/core/request.js`: 2
+- `src/core/response.js`: 2
 - `src/core/errors.js`: 1
 - `src/core/export-format.js`: 1
-- `src/core/history.js`: 1
-- `src/core/response.js`: 1
 - `src/core/url.js`: 1
+- `src/ui/collections-panel.js`: 1
+- `src/ui/dialogs.js`: 1
+- `src/ui/history-panel.js`: 1
 - `src/ui/rows-editor.js`: 1
 - `src/ui/store.js`: 1
 
 ## Importing the most modules
 
-- `src/ui/app.js`: 7
+- `src/ui/app.js`: 13
+- `src/core/history.js`: 2
+- `src/ui/history-panel.js`: 2
+- `src/core/collections.js`: 1
+- `src/core/export-format.js`: 1
 - `src/core/request.js`: 1
+- `src/ui/collections-panel.js`: 1
 - `src/ui/rows-editor.js`: 1
 
 ## Every edge
 
 | Module | Imports | Names |
 |---|---|---|
+| `src/core/collections.js` | `src/core/draft.js` | `copyDraft` |
+| `src/core/export-format.js` | `src/core/draft.js` | `DRAFT_FIELDS`, `copyDraft` |
+| `src/core/history.js` | `src/core/draft.js` | `copyDraft` |
+| `src/core/history.js` | `src/core/ids.js` | `makeId` |
 | `src/core/request.js` | `src/core/url.js` | `buildUrl`, `enabledRows` |
+| `src/ui/app.js` | `src/core/collections.js` | `addCollection`, `addFolder`, `addRequest`, `findRequest`, `mergeCollections`, `removeItem`, `renameItem`, `requestPath`, `updateRequestDraft` |
+| `src/ui/app.js` | `src/core/draft.js` | `copyDraft`, `emptyDraft`, `sameDraft` |
 | `src/ui/app.js` | `src/core/errors.js` | `explainFetchError` |
-| `src/ui/app.js` | `src/core/export-format.js` | `parseExport`, `serializeHistory` |
-| `src/ui/app.js` | `src/core/history.js` | `addToHistory`, `copyDraft`, `historyEntry`, `historyLabel`, `mergeHistory` |
-| `src/ui/app.js` | `src/core/request.js` | `METHODS`, `emptyDraft`, `methodTakesNoBody`, `toFetchRequest` |
+| `src/ui/app.js` | `src/core/export-format.js` | `parseExport`, `serializeWorkspace` |
+| `src/ui/app.js` | `src/core/history.js` | `addToHistory`, `historyEntry`, `mergeHistory` |
+| `src/ui/app.js` | `src/core/ids.js` | `makeId` |
+| `src/ui/app.js` | `src/core/request.js` | `METHODS`, `methodTakesNoBody`, `toFetchRequest` |
 | `src/ui/app.js` | `src/core/response.js` | `formatBytes`, `formatDuration`, `prettyBody`, `statusClass`, `statusLabel` |
+| `src/ui/app.js` | `src/ui/collections-panel.js` | `renderCollections` |
+| `src/ui/app.js` | `src/ui/dialogs.js` | `askSaveTarget`, `askText` |
+| `src/ui/app.js` | `src/ui/history-panel.js` | `renderHistory` |
 | `src/ui/app.js` | `src/ui/rows-editor.js` | `renderRows` |
-| `src/ui/app.js` | `src/ui/store.js` | `loadDraft`, `loadHistory`, `saveDraft`, `saveHistory` |
+| `src/ui/app.js` | `src/ui/store.js` | `loadCollections`, `loadDraft`, `loadHistory`, `loadOpenRequestId`, `saveCollections`, `saveDraft`, `saveHistory`, `saveOpenRequestId` |
+| `src/ui/collections-panel.js` | `src/core/collections.js` | `requestsIn` |
+| `src/ui/history-panel.js` | `src/core/history.js` | `historyLabel` |
+| `src/ui/history-panel.js` | `src/core/response.js` | `statusClass` |
 | `src/ui/rows-editor.js` | `src/core/request.js` | `isForbiddenHeader` |

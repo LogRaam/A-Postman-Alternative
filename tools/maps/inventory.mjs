@@ -31,17 +31,21 @@ export function generateInventory(root) {
   for (const folder of folders) {
     lines.push('', '## `' + folder + '`', '', LAYERS[folder] || '(no description: add one to inventory.mjs)');
     for (const module of modules.filter(m => m.path.slice(0, m.path.lastIndexOf('/')) === folder)) {
-      const count = module.text.split('\n').length - (module.text.endsWith('\n') ? 1 : 0);
-      lines.push('', '### `' + module.path + '` (' + count + ' lines)', '', module.header || '(no header comment)', '');
+      lines.push('', '### `' + module.path + '` (' + lineCount(module.text) + ' lines)', '', module.header || '(no header comment)', '');
       for (const decl of module.declarations) {
         lines.push('- `' + decl.name + '` ' + decl.kind + (decl.exported ? ', exported' : ', private') + ': ' + (decl.doc || 'no doc'));
       }
     }
   }
 
-  const large = modules.map(m => [m.path, m.text.split('\n').length]).filter(([, n]) => n >= LARGE_FILE_LINES);
+  const large = modules.map(m => [m.path, lineCount(m.text)]).filter(([, n]) => n >= LARGE_FILE_LINES);
   lines.push('', '## Files of ' + LARGE_FILE_LINES + ' lines and more', '');
   if (large.length) for (const [path, n] of large) lines.push('- `' + path + '`: ' + n + ' lines');
   else lines.push('None.');
   return lines.join('\n') + '\n';
+}
+
+/** Lines in a file as an editor numbers them: a final newline does not start another line. */
+function lineCount(text) {
+  return text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
 }

@@ -31,16 +31,46 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 aside header { padding: 14px 14px 8px; }
 aside h1 { font-size: 16px; margin: 0 0 2px; }
 aside .tagline { color: var(--muted); font-size: 12px; margin: 0; }
-.history-tools { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); align-items: center; }
-.history-tools h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 auto 0 0; }
-#history { list-style: none; margin: 0; padding: 4px 0; overflow: auto; flex: 1; }
+.workspace-tools { display: flex; gap: 6px; padding: 0 14px 8px; }
+.sidebar-tabs { padding: 0 8px; margin: 0; }
+.sidebar-panel { overflow: auto; flex: 1; min-height: 0; }
+.panel-tools { padding: 8px 14px 4px; }
+.empty { color: var(--muted); font-size: 12px; padding: 4px 14px; margin: 0; }
+#history { list-style: none; margin: 0; padding: 4px 0; }
+.collection { padding: 4px 0 8px; }
+.item { display: flex; align-items: center; gap: 4px; padding: 3px 8px 3px 14px; min-height: 28px; }
+.item:hover { background: var(--code); }
+.item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.item .tools { display: flex; opacity: 0; }
+.item:hover .tools, .item:focus-within .tools { opacity: 1; }
+.item .tools .icon { font-size: 14px; padding: 0 4px; }
+.collection-name { font-weight: 600; }
+.folder-name { padding-left: 26px; color: var(--muted); }
+.folder-name .label::before { content: "B8  "; }
+.request .open { display: flex; gap: 8px; flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; align-items: baseline; }
+.request { padding-left: 26px; }
+.request.in-folder { padding-left: 40px; }
+.request.current { background: var(--code); box-shadow: inset 3px 0 var(--accent); }
+.method { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--muted); min-width: 52px; }
+.title-line { display: flex; gap: 8px; align-items: center; min-height: 26px; }
+#request-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dirty { color: var(--redirect); font-size: 12px; white-space: nowrap; }
+.spacer { flex: 1; }
+dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); padding: 18px; width: min(420px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0, 0, 0, .35); }
+dialog h2 { font-size: 16px; margin: 0 0 12px; }
+dialog label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+dialog label span { font-size: 12px; color: var(--muted); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+button.primary { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 6px; padding: 6px 16px; font-weight: 600; cursor: pointer; }
 #history button { display: flex; gap: 8px; width: 100%; text-align: left; border: 0; background: none; padding: 6px 14px; cursor: pointer; align-items: baseline; }
 #history button:hover { background: var(--code); }
 #history .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outcome { font-family: ui-monospace, Consolas, monospace; font-size: 12px; min-width: 40px; }
 .ok { color: var(--ok); } .redirect { color: var(--redirect); } .client-error { color: var(--client-error); }
 .server-error { color: var(--server-error); } .failed { color: var(--failed); }
-#history-empty, #notice { color: var(--muted); font-size: 12px; padding: 8px 14px; margin: 0; }
+#notice { color: var(--muted); font-size: 12px; padding: 0 14px 6px; margin: 0; }
+#notice:empty { display: none; }
 main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 14px 16px; gap: 10px; overflow: auto; }
 #request-line { display: flex; gap: 8px; }
 #method { width: 110px; font-weight: 600; }
@@ -88,18 +118,35 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
       <h1>A Postman Alternative</h1>
       <p class="tagline">An HTTP client in one file.</p>
     </header>
-    <div class="history-tools">
-      <h2>History</h2>
-      <button type="button" class="small" id="export" title="Save the history as a JSON file">Export</button>
-      <button type="button" class="small" id="import" title="Add the requests from an exported file">Import</button>
-      <button type="button" class="small" id="clear" title="Remove every request from the history">Clear</button>
+    <div class="workspace-tools">
+      <button type="button" class="small" id="export" title="Save history and collections to a JSON file">Export</button>
+      <button type="button" class="small" id="import" title="Add the history and collections of an exported file">Import</button>
     </div>
     <p id="notice" aria-live="polite"></p>
-    <p id="history-empty">Requests you send appear here. Click one to load it again.</p>
-    <ul id="history"></ul>
+    <div role="tablist" id="sidebar-tabs" class="sidebar-tabs">
+      <button type="button" role="tab" id="tab-collections" aria-controls="collections-panel" aria-selected="true">Collections</button>
+      <button type="button" role="tab" id="tab-history" aria-controls="history-panel" aria-selected="false">History</button>
+    </div>
+    <div id="collections-panel" role="tabpanel" class="sidebar-panel">
+      <div class="panel-tools"><button type="button" class="small" id="new-collection">New collection</button></div>
+      <div id="collections"></div>
+    </div>
+    <div id="history-panel" role="tabpanel" class="sidebar-panel" hidden>
+      <div class="panel-tools"><button type="button" class="small" id="clear" title="Remove every request from the history">Clear history</button></div>
+      <p id="history-empty" class="empty">Requests you send appear here. Click one to load it again.</p>
+      <ul id="history"></ul>
+    </div>
     <input type="file" id="import-file" accept="application/json,.json" hidden>
   </aside>
   <main>
+    <div class="title-line">
+      <span id="request-title">Unsaved request</span>
+      <span id="request-dirty" class="dirty" title="Changed since it was saved" hidden>&#9679; unsaved changes</span>
+      <span class="spacer"></span>
+      <button type="button" class="small" id="new-request" title="Start an empty request">New</button>
+      <button type="button" class="small" id="save" title="Save (Ctrl+S)">Save</button>
+      <button type="button" class="small" id="save-as" title="Save as a new request (Ctrl+Shift+S)" hidden>Save as&hellip;</button>
+    </div>
     <form id="request-line" autocomplete="off">
       <select id="method" aria-label="Method"></select>
       <input type="text" id="url" placeholder="https://httpbin.org/get" aria-label="Address" spellcheck="false">
@@ -148,6 +195,7 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
     </section>
   </main>
 </div>
+<dialog id="dialog"></dialog>
 <script>
 (() => {
 'use strict';
@@ -203,11 +251,6 @@ const FORBIDDEN_HEADERS = [
   'origin', 'referer', 'set-cookie', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'user-agent', 'via',
 ];
 
-/** A new, empty draft: what the editor shows on first open. */
-function emptyDraft() {
-  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '' };
-}
-
 /** True when the browser will drop this header name rather than send it. */
 function isForbiddenHeader(name) {
   const lower = (name || '').trim().toLowerCase();
@@ -258,6 +301,56 @@ function toFetchRequest(draft) {
 /** True when a header of this name (already lower-cased) is in the list, in any case. */
 function hasHeader(headers, lowerName) {
   return headers.some(([name]) => name.toLowerCase() === lowerName);
+}
+
+// ---- src/core/draft.js ----
+/**
+ * The draft: one request as the editor holds it, and as history entries and saved requests keep it.
+ * Every place that stores a request stores this shape, so its fields are listed once, here.
+ */
+
+/** Every field of a draft, as [path, type], for the export file's validator and map. "[]" marks array items. */
+const DRAFT_FIELDS = [
+  ['method', 'string'],
+  ['url', 'string'],
+  ['params', 'array'],
+  ['params[].enabled', 'boolean'],
+  ['params[].key', 'string'],
+  ['params[].value', 'string'],
+  ['headers', 'array'],
+  ['headers[].enabled', 'boolean'],
+  ['headers[].key', 'string'],
+  ['headers[].value', 'string'],
+  ['bodyMode', 'string'],
+  ['body', 'string'],
+];
+
+/** A new, empty draft: what the editor shows on first open. */
+function emptyDraft() {
+  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '' };
+}
+
+/** A deep copy of a draft, rows included, with every field present (a field missing from old data gets its default). */
+function copyDraft(draft) {
+  const empty = emptyDraft();
+  return {
+    method: draft.method ?? empty.method,
+    url: draft.url ?? empty.url,
+    params: (draft.params || []).map(copyRow),
+    headers: (draft.headers || []).map(copyRow),
+    bodyMode: draft.bodyMode ?? empty.bodyMode,
+    body: draft.body ?? empty.body,
+  };
+}
+
+/** True when two drafts would send the same request: what "unsaved changes" means for a saved request. */
+function sameDraft(a, b) {
+  return JSON.stringify(copyDraft(a)) === JSON.stringify(copyDraft(b));
+}
+
+/** A row with all three fields present: ticked unless explicitly unticked, empty strings rather than undefined. */
+function copyRow(row) {
+  return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
 }
 
 // ---- src/core/response.js ----
@@ -337,8 +430,17 @@ function explainFetchError(error, url, pageProtocol) {
   return (error && error.message) || 'The request failed for an unknown reason.';
 }
 
+// ---- src/core/ids.js ----
+/** Identifiers for things the user keeps: history entries, collections, folders, saved requests. */
+
+/** A new identifier, unique enough for one person's workspace: the time, then six random characters. */
+function makeId(now = Date.now()) {
+  return now.toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
 // ---- src/core/history.js ----
 /** The list of requests already sent: newest first, capped, each one enough to reload the editor. */
+
 
 /** How many sent requests are kept; the oldest go first. */
 const HISTORY_LIMIT = 100;
@@ -349,7 +451,7 @@ const HISTORY_LIMIT = 100;
  */
 function historyEntry(draft, outcome, sentAt) {
   return {
-    id: sentAt + '-' + Math.random().toString(36).slice(2, 8),
+    id: makeId(sentAt),
     sentAt,
     draft: copyDraft(draft),
     status: outcome.status ?? null,
@@ -378,24 +480,108 @@ function historyLabel(entry) {
   return entry.draft.method + ' ' + (address || '(no address)');
 }
 
-/** A deep copy of a draft, rows included. */
-function copyDraft(draft) {
-  return {
-    method: draft.method,
-    url: draft.url,
-    params: (draft.params || []).map(row => ({ ...row })),
-    headers: (draft.headers || []).map(row => ({ ...row })),
-    bodyMode: draft.bodyMode,
-    body: draft.body,
-  };
+// ---- src/core/collections.js ----
+/**
+ * Collections: named requests the user saves, grouped in collections and, optionally, one level of folders.
+ * Every function returns a new list and never changes the one it is given, so the page can offer undo.
+ */
+
+
+/** The list with a new, empty collection added at the end. */
+function addCollection(collections, name, id) {
+  return [...collections, { id, name: cleanName(name, 'New collection'), folders: [], requests: [] }];
+}
+
+/** The list with a folder added to a collection. */
+function addFolder(collections, collectionId, name, id) {
+  return collections.map(c => (c.id === collectionId ? { ...c, folders: [...c.folders, { id, name: cleanName(name, 'New folder') }] } : c));
+}
+
+/** The list with the draft saved as a new named request, in a collection and optionally one of its folders. */
+function addRequest(collections, { collectionId, folderId = null, name, draft, id }) {
+  return collections.map(c => (c.id === collectionId
+    ? { ...c, requests: [...c.requests, { id, name: cleanName(name, 'New request'), folderId, draft: copyDraft(draft) }] }
+    : c));
+}
+
+/** The list with a saved request's draft replaced by this one: what Save does on a request already saved. */
+function updateRequestDraft(collections, requestId, draft) {
+  return collections.map(c => ({ ...c, requests: c.requests.map(r => (r.id === requestId ? { ...r, draft: copyDraft(draft) } : r)) }));
+}
+
+/** The list with a collection, folder or request renamed, whichever has this id. */
+function renameItem(collections, id, name) {
+  return collections.map(c => ({
+    ...c,
+    name: c.id === id ? cleanName(name, c.name) : c.name,
+    folders: c.folders.map(f => (f.id === id ? { ...f, name: cleanName(name, f.name) } : f)),
+    requests: c.requests.map(r => (r.id === id ? { ...r, name: cleanName(name, r.name) } : r)),
+  }));
+}
+
+/** The list without the collection, folder or request with this id. A folder goes with the requests in it. */
+function removeItem(collections, id) {
+  return collections
+    .filter(c => c.id !== id)
+    .map(c => ({
+      ...c,
+      folders: c.folders.filter(f => f.id !== id),
+      requests: c.requests.filter(r => r.id !== id && r.folderId !== id),
+    }));
+}
+
+/** The saved request with this id and the collection and folder holding it, or null. */
+function findRequest(collections, requestId) {
+  for (const collection of collections) {
+    const request = collection.requests.find(r => r.id === requestId);
+    if (request) return { collection, folder: collection.folders.find(f => f.id === request.folderId) || null, request };
+  }
+  return null;
+}
+
+/** "Collection / Folder / Request" for a saved request, or '' when it no longer exists. */
+function requestPath(collections, requestId) {
+  const found = findRequest(collections, requestId);
+  if (!found) return '';
+  return [found.collection.name, found.folder && found.folder.name, found.request.name].filter(Boolean).join(' / ');
+}
+
+/**
+ * The collections after importing some from a file. A collection, folder or request already present (same id)
+ * is kept as it is here; anything new is added. Importing the same file twice changes nothing.
+ */
+function mergeCollections(collections, imported) {
+  const result = collections.map(c => ({ ...c, folders: [...c.folders], requests: [...c.requests] }));
+  for (const incoming of imported || []) {
+    const existing = result.find(c => c.id === incoming.id);
+    if (!existing) {
+      result.push({ ...incoming, folders: [...incoming.folders], requests: [...incoming.requests] });
+      continue;
+    }
+    for (const folder of incoming.folders) if (!existing.folders.some(f => f.id === folder.id)) existing.folders.push(folder);
+    for (const request of incoming.requests) if (!existing.requests.some(r => r.id === request.id)) existing.requests.push(request);
+  }
+  return result;
+}
+
+/** The requests of a collection that sit directly in it, or in one folder, in the order they were saved. */
+function requestsIn(collection, folderId = null) {
+  return collection.requests.filter(r => (r.folderId || null) === folderId);
+}
+
+/** A name trimmed, or the fallback when nothing but spaces was typed. */
+function cleanName(name, fallback) {
+  const trimmed = (name || '').trim();
+  return trimmed || fallback;
 }
 
 // ---- src/core/export-format.js ----
 /**
- * The history export file: the one format this app promises to read back, so a file exported today still
- * imports after an upgrade. EXPORT_FIELDS is both the validator and the source of the export-format map;
- * a field removed from it is refused by the format guard once it has shipped.
+ * The export file: the one format this app promises to read back, so a file exported today still imports
+ * after an upgrade. It carries the whole workspace: history and collections. EXPORT_FIELDS is both the
+ * validator and the source of the export-format map; a field removed from it is refused once it has shipped.
  */
+
 
 /** The value of the file's "format" field; a file without it is not one of ours. */
 const EXPORT_FORMAT = 'postman-alternative';
@@ -405,7 +591,8 @@ const EXPORT_VERSION = 1;
 
 /**
  * Every field of the file, as [path, type]. "[]" marks the items of an array. Type is one JSON type, or
- * several joined by "|". Additive only once released: see docs/maps/README.md.
+ * several joined by "|". The draft's fields come from DRAFT_FIELDS, wherever a draft is stored.
+ * Additive only once released: see docs/maps/README.md.
  */
 const EXPORT_FIELDS = [
   ['format', 'string'],
@@ -415,49 +602,43 @@ const EXPORT_FIELDS = [
   ['history[].id', 'string'],
   ['history[].sentAt', 'number'],
   ['history[].draft', 'object'],
-  ['history[].draft.method', 'string'],
-  ['history[].draft.url', 'string'],
-  ['history[].draft.params', 'array'],
-  ['history[].draft.params[].enabled', 'boolean'],
-  ['history[].draft.params[].key', 'string'],
-  ['history[].draft.params[].value', 'string'],
-  ['history[].draft.headers', 'array'],
-  ['history[].draft.headers[].enabled', 'boolean'],
-  ['history[].draft.headers[].key', 'string'],
-  ['history[].draft.headers[].value', 'string'],
-  ['history[].draft.bodyMode', 'string'],
-  ['history[].draft.body', 'string'],
+  ...draftFieldsAt('history[].draft'),
   ['history[].status', 'number|null'],
   ['history[].error', 'string|null'],
+  ['collections', 'array'],
+  ['collections[].id', 'string'],
+  ['collections[].name', 'string'],
+  ['collections[].folders', 'array'],
+  ['collections[].folders[].id', 'string'],
+  ['collections[].folders[].name', 'string'],
+  ['collections[].requests', 'array'],
+  ['collections[].requests[].id', 'string'],
+  ['collections[].requests[].name', 'string'],
+  ['collections[].requests[].folderId', 'string|null'],
+  ['collections[].requests[].draft', 'object'],
+  ...draftFieldsAt('collections[].requests[].draft'),
 ];
 
-/** The text of an export file for these history entries. */
-function serializeHistory(history, exportedAt) {
+/** The text of an export file for this workspace. */
+function serializeWorkspace({ history, collections }, exportedAt) {
   const file = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt,
-    history: history.map(entry => ({
-      id: entry.id,
-      sentAt: entry.sentAt,
-      draft: {
-        method: entry.draft.method,
-        url: entry.draft.url,
-        params: entry.draft.params.map(exportRow),
-        headers: entry.draft.headers.map(exportRow),
-        bodyMode: entry.draft.bodyMode,
-        body: entry.draft.body,
-      },
-      status: entry.status,
-      error: entry.error,
+    history: history.map(entry => ({ id: entry.id, sentAt: entry.sentAt, draft: copyDraft(entry.draft), status: entry.status, error: entry.error })),
+    collections: collections.map(c => ({
+      id: c.id,
+      name: c.name,
+      folders: c.folders.map(f => ({ id: f.id, name: f.name })),
+      requests: c.requests.map(r => ({ id: r.id, name: r.name, folderId: r.folderId ?? null, draft: copyDraft(r.draft) })),
     })),
   };
   return JSON.stringify(file, null, 2) + '\n';
 }
 
 /**
- * The history entries in an export file. Throws a plain-language error naming the first field that is
- * missing or of the wrong type, or a version newer than this code knows.
+ * The workspace in an export file: { history, collections }. Throws a plain-language error naming the first
+ * field that is missing or of the wrong type, or a version newer than this code knows.
  */
 function parseExport(text) {
   let file;
@@ -471,19 +652,19 @@ function parseExport(text) {
     throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
   }
   for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
-  return file.history;
+  return { history: file.history, collections: file.collections };
 }
 
-/** A parameter or header row as written to the file: every field present, never undefined. */
-function exportRow(row) {
-  return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
+/** DRAFT_FIELDS with their paths placed under a prefix, such as "history[].draft". */
+function draftFieldsAt(prefix) {
+  return DRAFT_FIELDS.map(([path, type]) => [prefix + '.' + path, type]);
 }
 
 /** Walks one field path into the file and throws when the value at its end is not of the expected type. */
 function checkField(value, steps, type, where) {
   if (steps.length === 0) {
     if (!type.split('|').includes(jsonType(value))) {
-      throw new Error('The file is damaged: "' + where + '" should be ' + type.replace('|', ' or ') + '.');
+      throw new Error('The file is damaged: "' + where + '" should be ' + type.split('|').join(' or ') + '.');
     }
     return;
   }
@@ -506,7 +687,7 @@ function jsonType(value) {
 
 // ---- src/ui/store.js ----
 /**
- * Working state kept in the browser between visits: the current draft and the history. localStorage can
+ * Working state kept in the browser between visits: the draft, the history and the collections. localStorage can
  * be missing or throw (private windows, blocked site data, file:// in some browsers), so every access is
  * guarded and the app works without it. The durable copy is the export file, not this.
  */
@@ -515,6 +696,32 @@ function jsonType(value) {
 const DRAFT_KEY = 'postman-alternative.draft.v1';
 /** Storage key of the history list. */
 const HISTORY_KEY = 'postman-alternative.history.v1';
+/** Storage key of the collections. */
+const COLLECTIONS_KEY = 'postman-alternative.collections.v1';
+/** Storage key of the id of the saved request open in the editor. */
+const OPEN_REQUEST_KEY = 'postman-alternative.open-request.v1';
+
+/** The saved collections, or an empty list. */
+function loadCollections() {
+  const collections = readJson(COLLECTIONS_KEY);
+  return Array.isArray(collections) ? collections : [];
+}
+
+/** Saves the collections; silently does nothing when storage is unavailable. */
+function saveCollections(collections) {
+  writeJson(COLLECTIONS_KEY, collections);
+}
+
+/** The id of the saved request open in the editor, or null. */
+function loadOpenRequestId() {
+  const id = readJson(OPEN_REQUEST_KEY);
+  return typeof id === 'string' ? id : null;
+}
+
+/** Remembers which saved request is open in the editor (null for none). */
+function saveOpenRequestId(id) {
+  writeJson(OPEN_REQUEST_KEY, id);
+}
 
 /** The saved draft, or null when there is none or storage is unavailable. */
 function loadDraft() {
@@ -627,21 +834,244 @@ function renderRows(container, rows, onChange, { keyPlaceholder, checkHeaders = 
   container.append(add);
 }
 
+// ---- src/ui/history-panel.js ----
+/** The History tab of the sidebar: every request sent, newest first, each one reloadable. */
+
+
+/** Draws the history into the list; onOpen(entry) loads an entry into the editor. */
+function renderHistory(list, emptyNote, history, onOpen) {
+  list.replaceChildren();
+  emptyNote.hidden = history.length > 0;
+  for (const entry of history) {
+    const item = document.createElement('li');
+    const button = document.createElement('button');
+    button.type = 'button';
+    const outcome = document.createElement('span');
+    outcome.className = 'outcome ' + (entry.status ? statusClass(entry.status) : 'failed');
+    outcome.textContent = entry.status ? String(entry.status) : 'failed';
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = historyLabel(entry);
+    button.title = new Date(entry.sentAt).toLocaleString() + (entry.error ? '\n' + entry.error : '');
+    button.append(outcome, label);
+    button.addEventListener('click', () => onOpen(entry));
+    item.append(button);
+    list.append(item);
+  }
+}
+
+// ---- src/ui/collections-panel.js ----
+/** The Collections tab of the sidebar: collections, their folders and saved requests, with rename and remove. */
+
+
+/**
+ * Draws the collections into the container. actions holds the callbacks: open(requestId),
+ * addFolder(collectionId), rename(id, currentName), remove(id, label).
+ */
+function renderCollections(container, collections, openRequestId, actions) {
+  container.replaceChildren();
+  if (collections.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'empty';
+    empty.textContent = 'No collection yet. Save a request (Ctrl+S) to start one.';
+    container.append(empty);
+    return;
+  }
+  for (const collection of collections) {
+    const group = document.createElement('div');
+    group.className = 'collection';
+    group.append(itemLine('collection-name', collection.name, [
+      tool('+', 'Add a folder', () => actions.addFolder(collection.id)),
+      tool('✎', 'Rename', () => actions.rename(collection.id, collection.name)),
+      tool('×', 'Remove the collection and everything in it', () => actions.remove(collection.id, 'collection "' + collection.name + '"')),
+    ]));
+    for (const folder of collection.folders) {
+      group.append(itemLine('folder-name', folder.name, [
+        tool('✎', 'Rename', () => actions.rename(folder.id, folder.name)),
+        tool('×', 'Remove the folder and its requests', () => actions.remove(folder.id, 'folder "' + folder.name + '"')),
+      ]));
+      for (const request of requestsIn(collection, folder.id)) group.append(requestLine(request, openRequestId, actions, true));
+    }
+    for (const request of requestsIn(collection, null)) group.append(requestLine(request, openRequestId, actions, false));
+    container.append(group);
+  }
+}
+
+/** One saved request: method and name, opening it on click, with rename and remove. */
+function requestLine(request, openRequestId, actions, inFolder) {
+  const open = document.createElement('button');
+  open.type = 'button';
+  open.className = 'open';
+  const method = document.createElement('span');
+  method.className = 'method';
+  method.textContent = request.draft.method;
+  const name = document.createElement('span');
+  name.className = 'label';
+  name.textContent = request.name;
+  open.append(method, name);
+  open.title = request.draft.url || '(no address)';
+  open.addEventListener('click', () => actions.open(request.id));
+  const line = itemLine('request' + (inFolder ? ' in-folder' : ''), null, [
+    tool('✎', 'Rename', () => actions.rename(request.id, request.name)),
+    tool('×', 'Remove this request', () => actions.remove(request.id, 'request "' + request.name + '"')),
+  ]);
+  line.prepend(open);
+  line.classList.toggle('current', request.id === openRequestId);
+  return line;
+}
+
+/** A row of the tree: a text (or nothing, when the caller prepends its own) and small tool buttons. */
+function itemLine(className, text, tools) {
+  const line = document.createElement('div');
+  line.className = 'item ' + className;
+  if (text !== null) {
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = text;
+    line.append(label);
+  }
+  const box = document.createElement('span');
+  box.className = 'tools';
+  box.append(...tools);
+  line.append(box);
+  return line;
+}
+
+/** A small icon button with a tooltip. */
+function tool(symbol, title, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'icon';
+  button.textContent = symbol;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+// ---- src/ui/dialogs.js ----
+/** Small modal questions built on the page's one <dialog>: a name to type, or where to save a request. */
+
+/**
+ * Asks for one line of text. Resolves with the trimmed text, or null when cancelled or left blank.
+ */
+function askText({ title, label, initial = '', confirm = 'OK' }) {
+  return openDialog(title, confirm, form => {
+    const input = field(form, label, 'text');
+    input.value = initial;
+    return { focus: input, read: () => input.value.trim() || null };
+  });
+}
+
+/**
+ * Asks where to save the editor's request: its name, the collection (an existing one, or a new one named
+ * here) and optionally a folder of it. Resolves with { name, collectionId, newCollectionName, folderId } or null.
+ */
+function askSaveTarget(collections, suggestedName) {
+  return openDialog('Save request', 'Save', form => {
+    const name = field(form, 'Name', 'text');
+    name.value = suggestedName;
+
+    const collection = field(form, 'Collection', 'select');
+    for (const c of collections) collection.append(new Option(c.name, c.id));
+    collection.append(new Option('New collection…', ''));
+
+    const newName = field(form, 'New collection name', 'text');
+    newName.value = 'My requests';
+    const folder = field(form, 'Folder', 'select');
+
+    const refresh = () => {
+      const chosen = collections.find(c => c.id === collection.value);
+      newName.closest('label').hidden = Boolean(chosen);
+      folder.replaceChildren(new Option('(none)', ''));
+      for (const f of chosen ? chosen.folders : []) folder.append(new Option(f.name, f.id));
+      folder.closest('label').hidden = !chosen || chosen.folders.length === 0;
+    };
+    collection.addEventListener('change', refresh);
+    refresh();
+
+    return {
+      focus: name,
+      read: () => (name.value.trim()
+        ? { name: name.value.trim(), collectionId: collection.value || null, newCollectionName: newName.value.trim(), folderId: folder.value || null }
+        : null),
+    };
+  });
+}
+
+/** Opens the dialog with a form built by build(form); resolves with build's read() on confirm, null on cancel. */
+function openDialog(title, confirmLabel, build) {
+  const dialog = document.getElementById('dialog');
+  const form = document.createElement('form');
+  form.method = 'dialog';
+  const heading = document.createElement('h2');
+  heading.textContent = title;
+  form.append(heading);
+  const { focus, read } = build(form);
+
+  const actions = document.createElement('div');
+  actions.className = 'dialog-actions';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'small';
+  cancel.textContent = 'Cancel';
+  const confirm = document.createElement('button');
+  confirm.type = 'submit';
+  confirm.className = 'primary';
+  confirm.textContent = confirmLabel;
+  actions.append(cancel, confirm);
+  form.append(actions);
+  dialog.replaceChildren(form);
+
+  return new Promise(resolve => {
+    // Settled by the action itself, not by the dialog's "close" event, which some browsers deliver late.
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      if (dialog.open) dialog.close();
+      resolve(value);
+    };
+    form.addEventListener('submit', event => { event.preventDefault(); finish(read()); });
+    cancel.addEventListener('click', () => finish(null));
+    dialog.addEventListener('cancel', () => finish(null), { once: true });
+    dialog.addEventListener('close', () => finish(null), { once: true });
+    dialog.showModal();
+    focus.focus();
+    if (focus.select) focus.select();
+  });
+}
+
+/** A labelled input or select appended to the form; returns the control. */
+function field(form, labelText, kind) {
+  const label = document.createElement('label');
+  const caption = document.createElement('span');
+  caption.textContent = labelText;
+  const control = document.createElement(kind === 'select' ? 'select' : 'input');
+  if (kind !== 'select') { control.type = kind; control.spellcheck = false; }
+  label.append(caption, control);
+  form.append(label);
+  return control;
+}
+
 // ---- src/ui/app.js ----
-/** The page: wires the editor, the send button, the response panel and the history sidebar together. */
+/** The page: wires the editor, the send button, the response panel and the sidebar together. */
 
 
 /** Starts the app once the page is loaded. */
 function startApp() {
   const $ = id => document.getElementById(id);
-  let draft = loadDraft() || emptyDraft();
+  let draft = copyDraft(loadDraft() || emptyDraft());
   let history = loadHistory();
+  let collections = loadCollections();
+  let openRequestId = loadOpenRequestId();
+  if (openRequestId && !findRequest(collections, openRequestId)) openRequestId = null;
   let inFlight = null;
 
   const method = $('method');
   for (const name of METHODS) method.append(new Option(name, name));
 
-  const changed = () => { saveDraft(draft); refreshBodyHint(); };
+  const changed = () => { saveDraft(draft); refreshBodyHint(); refreshTitle(); };
 
   function showDraft() {
     method.value = draft.method;
@@ -651,6 +1081,7 @@ function startApp() {
     renderRows($('params'), draft.params, rows => { draft.params = rows; changed(); }, { keyPlaceholder: 'Parameter' });
     renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
     refreshBodyHint();
+    refreshTitle();
   }
 
   function refreshBodyHint() {
@@ -662,6 +1093,14 @@ function startApp() {
     $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
   }
 
+  /** The line above the editor: which saved request is open, and whether the editor differs from it. */
+  function refreshTitle() {
+    const found = openRequestId && findRequest(collections, openRequestId);
+    $('request-title').textContent = found ? requestPath(collections, openRequestId) : 'Unsaved request';
+    $('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
+    $('save-as').hidden = !found;
+  }
+
   method.addEventListener('change', () => { draft.method = method.value; changed(); });
   $('url').addEventListener('input', () => { draft.url = $('url').value; changed(); });
   $('body-mode').addEventListener('change', () => { draft.bodyMode = $('body-mode').value; changed(); });
@@ -669,6 +1108,7 @@ function startApp() {
 
   setUpTabs('request-tabs');
   setUpTabs('response-tabs');
+  setUpTabs('sidebar-tabs');
 
   $('request-line').addEventListener('submit', event => {
     event.preventDefault();
@@ -676,7 +1116,9 @@ function startApp() {
     else send();
   });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (!inFlight) send(); }
+    if (!(event.ctrlKey || event.metaKey) || $('dialog').open) return;
+    if (event.key === 'Enter') { event.preventDefault(); if (!inFlight) send(); }
+    if (event.key === 's' || event.key === 'S') { event.preventDefault(); save(event.shiftKey); }
   });
 
   async function send() {
@@ -749,29 +1191,89 @@ function startApp() {
   }
 
   function showHistory() {
-    const list = $('history');
-    list.replaceChildren();
-    $('history-empty').hidden = history.length > 0;
-    for (const entry of history) {
-      const item = document.createElement('li');
-      const button = document.createElement('button');
-      button.type = 'button';
-      const outcome = document.createElement('span');
-      outcome.className = 'outcome ' + (entry.status ? statusClass(entry.status) : 'failed');
-      outcome.textContent = entry.status ? String(entry.status) : 'failed';
-      const label = document.createElement('span');
-      label.className = 'label';
-      label.textContent = historyLabel(entry);
-      button.title = new Date(entry.sentAt).toLocaleString() + (entry.error ? '\n' + entry.error : '');
-      button.append(outcome, label);
-      button.addEventListener('click', () => { draft = copyDraft(entry.draft); saveDraft(draft); showDraft(); });
-      item.append(button);
-      list.append(item);
-    }
+    renderHistory($('history'), $('history-empty'), history, entry => openDraft(entry.draft, null));
   }
 
+  /** Loads a draft into the editor; requestId links it to a saved request, or null for a free draft. */
+  function openDraft(next, requestId) {
+    draft = copyDraft(next);
+    openRequestId = requestId;
+    saveDraft(draft);
+    saveOpenRequestId(openRequestId);
+    showDraft();
+    showCollections();
+  }
+
+  // ---- Collections ----
+
+  function setCollections(next) {
+    collections = next;
+    saveCollections(collections);
+    if (openRequestId && !findRequest(collections, openRequestId)) { openRequestId = null; saveOpenRequestId(null); }
+    showCollections();
+    refreshTitle();
+  }
+
+  function showCollections() {
+    renderCollections($('collections'), collections, openRequestId, {
+      open: id => openDraft(findRequest(collections, id).request.draft, id),
+      addFolder: async collectionId => {
+        const name = await askText({ title: 'New folder', label: 'Folder name', confirm: 'Add' });
+        if (name) setCollections(addFolder(collections, collectionId, name, makeId()));
+      },
+      rename: async (id, current) => {
+        const name = await askText({ title: 'Rename', label: 'New name', initial: current, confirm: 'Rename' });
+        if (name) setCollections(renameItem(collections, id, name));
+      },
+      remove: (id, label) => {
+        const kept = { collections, openRequestId };
+        setCollections(removeItem(collections, id));
+        setNotice('Removed ' + label + '.', () => {
+          openRequestId = kept.openRequestId;
+          saveOpenRequestId(openRequestId);
+          setCollections(kept.collections);
+          setNotice('');
+        });
+      },
+    });
+  }
+
+  /** Save: updates the open saved request, or asks where to save a new one. asNew forces the question. */
+  async function save(asNew) {
+    if (openRequestId && !asNew) {
+      setCollections(updateRequestDraft(collections, openRequestId, draft));
+      setNotice('Saved.');
+      return;
+    }
+    const target = await askSaveTarget(collections, suggestName(draft));
+    if (!target) return;
+    let next = collections;
+    let collectionId = target.collectionId;
+    if (!collectionId) {
+      collectionId = makeId();
+      next = addCollection(next, target.newCollectionName, collectionId);
+    }
+    const id = makeId();
+    next = addRequest(next, { collectionId, folderId: target.folderId, name: target.name, draft, id });
+    openRequestId = id;
+    saveOpenRequestId(id);
+    setCollections(next);
+    showSidebarTab('tab-collections');
+    setNotice('Saved as ' + requestPath(collections, id) + '.');
+  }
+
+  $('save').addEventListener('click', () => save(false));
+  $('save-as').addEventListener('click', () => save(true));
+  $('new-request').addEventListener('click', () => openDraft(emptyDraft(), null));
+  $('new-collection').addEventListener('click', async () => {
+    const name = await askText({ title: 'New collection', label: 'Collection name', confirm: 'Create' });
+    if (name) setCollections(addCollection(collections, name, makeId()));
+  });
+
+  // ---- Export, import, clear ----
+
   $('export').addEventListener('click', () => {
-    const text = serializeHistory(history, new Date().toISOString());
+    const text = serializeWorkspace({ history, collections }, new Date().toISOString());
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     link.download = 'postman-alternative-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -786,11 +1288,13 @@ function startApp() {
     if (!file) return;
     try {
       const imported = parseExport(await file.text());
-      const before = history.length;
-      history = mergeHistory(history, imported);
+      const before = { history: history.length, requests: countRequests(collections) };
+      history = mergeHistory(history, imported.history);
       saveHistory(history);
       showHistory();
-      setNotice('Imported ' + (history.length - before) + ' new request(s) from ' + file.name + '.');
+      setCollections(mergeCollections(collections, imported.collections));
+      setNotice('Imported from ' + file.name + ': ' + (countRequests(collections) - before.requests) + ' saved request(s), '
+        + (history.length - before.history) + ' history entr(ies).');
     } catch (error) {
       setNotice(error.message);
     }
@@ -820,21 +1324,41 @@ function startApp() {
 
   showDraft();
   showHistory();
+  showCollections();
+  showSidebarTab(collections.length ? 'tab-collections' : 'tab-history');
 }
 
 /** Makes the tab buttons of one tab list show their own panel and hide the others. */
 function setUpTabs(groupId) {
   const group = document.getElementById(groupId);
   const tabs = [...group.querySelectorAll('[role=tab]')];
-  for (const tab of tabs) {
-    tab.addEventListener('click', () => {
-      for (const other of tabs) {
-        const selected = other === tab;
-        other.setAttribute('aria-selected', String(selected));
-        document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
-      }
-    });
+  for (const tab of tabs) tab.addEventListener('click', () => selectTab(tabs, tab));
+}
+
+/** Selects one tab of its list and shows its panel. */
+function selectTab(tabs, tab) {
+  for (const other of tabs) {
+    const selected = other === tab;
+    other.setAttribute('aria-selected', String(selected));
+    document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
   }
+}
+
+/** Shows one of the sidebar's tabs by its button id. */
+function showSidebarTab(tabId) {
+  const tabs = [...document.querySelectorAll('#sidebar-tabs [role=tab]')];
+  selectTab(tabs, document.getElementById(tabId));
+}
+
+/** A name to offer when saving: the last part of the address path, or the method alone. */
+function suggestName(draft) {
+  const path = (draft.url || '').replace(/^https?:\/\//i, '').split('?')[0].split('/').filter(Boolean);
+  return path.length > 1 ? draft.method + ' ' + path[path.length - 1] : draft.method + ' ' + (path[0] || 'request');
+}
+
+/** How many saved requests the collections hold in all. */
+function countRequests(collections) {
+  return collections.reduce((n, c) => n + c.requests.length, 0);
 }
 
 /** " (3)" for three rows that will be sent, or "" when none will. */

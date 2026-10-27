@@ -1,8 +1,10 @@
 /**
- * The history export file: the one format this app promises to read back, so a file exported today still
- * imports after an upgrade. EXPORT_FIELDS is both the validator and the source of the export-format map;
- * a field removed from it is refused by the format guard once it has shipped.
+ * The export file: the one format this app promises to read back, so a file exported today still imports
+ * after an upgrade. It carries the whole workspace: history and collections. EXPORT_FIELDS is both the
+ * validator and the source of the export-format map; a field removed from it is refused once it has shipped.
  */
+
+import { DRAFT_FIELDS, copyDraft } from './draft.js';
 
 /** The value of the file's "format" field; a file without it is not one of ours. */
 export const EXPORT_FORMAT = 'postman-alternative';
@@ -12,7 +14,8 @@ export const EXPORT_VERSION = 1;
 
 /**
  * Every field of the file, as [path, type]. "[]" marks the items of an array. Type is one JSON type, or
- * several joined by "|". Additive only once released: see docs/maps/README.md.
+ * several joined by "|". The draft's fields come from DRAFT_FIELDS, wherever a draft is stored.
+ * Additive only once released: see docs/maps/README.md.
  */
 export const EXPORT_FIELDS = [
   ['format', 'string'],
@@ -22,49 +25,43 @@ export const EXPORT_FIELDS = [
   ['history[].id', 'string'],
   ['history[].sentAt', 'number'],
   ['history[].draft', 'object'],
-  ['history[].draft.method', 'string'],
-  ['history[].draft.url', 'string'],
-  ['history[].draft.params', 'array'],
-  ['history[].draft.params[].enabled', 'boolean'],
-  ['history[].draft.params[].key', 'string'],
-  ['history[].draft.params[].value', 'string'],
-  ['history[].draft.headers', 'array'],
-  ['history[].draft.headers[].enabled', 'boolean'],
-  ['history[].draft.headers[].key', 'string'],
-  ['history[].draft.headers[].value', 'string'],
-  ['history[].draft.bodyMode', 'string'],
-  ['history[].draft.body', 'string'],
+  ...draftFieldsAt('history[].draft'),
   ['history[].status', 'number|null'],
   ['history[].error', 'string|null'],
+  ['collections', 'array'],
+  ['collections[].id', 'string'],
+  ['collections[].name', 'string'],
+  ['collections[].folders', 'array'],
+  ['collections[].folders[].id', 'string'],
+  ['collections[].folders[].name', 'string'],
+  ['collections[].requests', 'array'],
+  ['collections[].requests[].id', 'string'],
+  ['collections[].requests[].name', 'string'],
+  ['collections[].requests[].folderId', 'string|null'],
+  ['collections[].requests[].draft', 'object'],
+  ...draftFieldsAt('collections[].requests[].draft'),
 ];
 
-/** The text of an export file for these history entries. */
-export function serializeHistory(history, exportedAt) {
+/** The text of an export file for this workspace. */
+export function serializeWorkspace({ history, collections }, exportedAt) {
   const file = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt,
-    history: history.map(entry => ({
-      id: entry.id,
-      sentAt: entry.sentAt,
-      draft: {
-        method: entry.draft.method,
-        url: entry.draft.url,
-        params: entry.draft.params.map(exportRow),
-        headers: entry.draft.headers.map(exportRow),
-        bodyMode: entry.draft.bodyMode,
-        body: entry.draft.body,
-      },
-      status: entry.status,
-      error: entry.error,
+    history: history.map(entry => ({ id: entry.id, sentAt: entry.sentAt, draft: copyDraft(entry.draft), status: entry.status, error: entry.error })),
+    collections: collections.map(c => ({
+      id: c.id,
+      name: c.name,
+      folders: c.folders.map(f => ({ id: f.id, name: f.name })),
+      requests: c.requests.map(r => ({ id: r.id, name: r.name, folderId: r.folderId ?? null, draft: copyDraft(r.draft) })),
     })),
   };
   return JSON.stringify(file, null, 2) + '\n';
 }
 
 /**
- * The history entries in an export file. Throws a plain-language error naming the first field that is
- * missing or of the wrong type, or a version newer than this code knows.
+ * The workspace in an export file: { history, collections }. Throws a plain-language error naming the first
+ * field that is missing or of the wrong type, or a version newer than this code knows.
  */
 export function parseExport(text) {
   let file;
@@ -78,19 +75,19 @@ export function parseExport(text) {
     throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
   }
   for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
-  return file.history;
+  return { history: file.history, collections: file.collections };
 }
 
-/** A parameter or header row as written to the file: every field present, never undefined. */
-function exportRow(row) {
-  return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
+/** DRAFT_FIELDS with their paths placed under a prefix, such as "history[].draft". */
+function draftFieldsAt(prefix) {
+  return DRAFT_FIELDS.map(([path, type]) => [prefix + '.' + path, type]);
 }
 
 /** Walks one field path into the file and throws when the value at its end is not of the expected type. */
 function checkField(value, steps, type, where) {
   if (steps.length === 0) {
     if (!type.split('|').includes(jsonType(value))) {
-      throw new Error('The file is damaged: "' + where + '" should be ' + type.replace('|', ' or ') + '.');
+      throw new Error('The file is damaged: "' + where + '" should be ' + type.split('|').join(' or ') + '.');
     }
     return;
   }

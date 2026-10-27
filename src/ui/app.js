@@ -1,24 +1,33 @@
-/** The page: wires the editor, the send button, the response panel and the history sidebar together. */
+/** The page: wires the editor, the send button, the response panel and the sidebar together. */
 
-import { METHODS, emptyDraft, toFetchRequest, methodTakesNoBody } from '../core/request.js';
+import { METHODS, toFetchRequest, methodTakesNoBody } from '../core/request.js';
+import { emptyDraft, copyDraft, sameDraft } from '../core/draft.js';
 import { statusLabel, statusClass, formatBytes, formatDuration, prettyBody } from '../core/response.js';
 import { explainFetchError } from '../core/errors.js';
-import { historyEntry, addToHistory, mergeHistory, historyLabel, copyDraft } from '../core/history.js';
-import { serializeHistory, parseExport } from '../core/export-format.js';
-import { loadDraft, saveDraft, loadHistory, saveHistory } from './store.js';
+import { historyEntry, addToHistory, mergeHistory } from '../core/history.js';
+import { addCollection, addFolder, addRequest, updateRequestDraft, renameItem, removeItem, findRequest, requestPath, mergeCollections } from '../core/collections.js';
+import { makeId } from '../core/ids.js';
+import { serializeWorkspace, parseExport } from '../core/export-format.js';
+import { loadDraft, saveDraft, loadHistory, saveHistory, loadCollections, saveCollections, loadOpenRequestId, saveOpenRequestId } from './store.js';
 import { renderRows } from './rows-editor.js';
+import { renderHistory } from './history-panel.js';
+import { renderCollections } from './collections-panel.js';
+import { askText, askSaveTarget } from './dialogs.js';
 
 /** Starts the app once the page is loaded. */
 export function startApp() {
   const $ = id => document.getElementById(id);
-  let draft = loadDraft() || emptyDraft();
+  let draft = copyDraft(loadDraft() || emptyDraft());
   let history = loadHistory();
+  let collections = loadCollections();
+  let openRequestId = loadOpenRequestId();
+  if (openRequestId && !findRequest(collections, openRequestId)) openRequestId = null;
   let inFlight = null;
 
   const method = $('method');
   for (const name of METHODS) method.append(new Option(name, name));
 
-  const changed = () => { saveDraft(draft); refreshBodyHint(); };
+  const changed = () => { saveDraft(draft); refreshBodyHint(); refreshTitle(); };
 
   function showDraft() {
     method.value = draft.method;
@@ -28,6 +37,7 @@ export function startApp() {
     renderRows($('params'), draft.params, rows => { draft.params = rows; changed(); }, { keyPlaceholder: 'Parameter' });
     renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
     refreshBodyHint();
+    refreshTitle();
   }
 
   function refreshBodyHint() {
@@ -39,6 +49,14 @@ export function startApp() {
     $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
   }
 
+  /** The line above the editor: which saved request is open, and whether the editor differs from it. */
+  function refreshTitle() {
+    const found = openRequestId && findRequest(collections, openRequestId);
+    $('request-title').textContent = found ? requestPath(collections, openRequestId) : 'Unsaved request';
+    $('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
+    $('save-as').hidden = !found;
+  }
+
   method.addEventListener('change', () => { draft.method = method.value; changed(); });
   $('url').addEventListener('input', () => { draft.url = $('url').value; changed(); });
   $('body-mode').addEventListener('change', () => { draft.bodyMode = $('body-mode').value; changed(); });
@@ -46,6 +64,7 @@ export function startApp() {
 
   setUpTabs('request-tabs');
   setUpTabs('response-tabs');
+  setUpTabs('sidebar-tabs');
 
   $('request-line').addEventListener('submit', event => {
     event.preventDefault();
@@ -53,7 +72,9 @@ export function startApp() {
     else send();
   });
   document.addEventListener('keydown', event => {
-    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (!inFlight) send(); }
+    if (!(event.ctrlKey || event.metaKey) || $('dialog').open) return;
+    if (event.key === 'Enter') { event.preventDefault(); if (!inFlight) send(); }
+    if (event.key === 's' || event.key === 'S') { event.preventDefault(); save(event.shiftKey); }
   });
 
   async function send() {
@@ -126,29 +147,89 @@ export function startApp() {
   }
 
   function showHistory() {
-    const list = $('history');
-    list.replaceChildren();
-    $('history-empty').hidden = history.length > 0;
-    for (const entry of history) {
-      const item = document.createElement('li');
-      const button = document.createElement('button');
-      button.type = 'button';
-      const outcome = document.createElement('span');
-      outcome.className = 'outcome ' + (entry.status ? statusClass(entry.status) : 'failed');
-      outcome.textContent = entry.status ? String(entry.status) : 'failed';
-      const label = document.createElement('span');
-      label.className = 'label';
-      label.textContent = historyLabel(entry);
-      button.title = new Date(entry.sentAt).toLocaleString() + (entry.error ? '\n' + entry.error : '');
-      button.append(outcome, label);
-      button.addEventListener('click', () => { draft = copyDraft(entry.draft); saveDraft(draft); showDraft(); });
-      item.append(button);
-      list.append(item);
-    }
+    renderHistory($('history'), $('history-empty'), history, entry => openDraft(entry.draft, null));
   }
 
+  /** Loads a draft into the editor; requestId links it to a saved request, or null for a free draft. */
+  function openDraft(next, requestId) {
+    draft = copyDraft(next);
+    openRequestId = requestId;
+    saveDraft(draft);
+    saveOpenRequestId(openRequestId);
+    showDraft();
+    showCollections();
+  }
+
+  // ---- Collections ----
+
+  function setCollections(next) {
+    collections = next;
+    saveCollections(collections);
+    if (openRequestId && !findRequest(collections, openRequestId)) { openRequestId = null; saveOpenRequestId(null); }
+    showCollections();
+    refreshTitle();
+  }
+
+  function showCollections() {
+    renderCollections($('collections'), collections, openRequestId, {
+      open: id => openDraft(findRequest(collections, id).request.draft, id),
+      addFolder: async collectionId => {
+        const name = await askText({ title: 'New folder', label: 'Folder name', confirm: 'Add' });
+        if (name) setCollections(addFolder(collections, collectionId, name, makeId()));
+      },
+      rename: async (id, current) => {
+        const name = await askText({ title: 'Rename', label: 'New name', initial: current, confirm: 'Rename' });
+        if (name) setCollections(renameItem(collections, id, name));
+      },
+      remove: (id, label) => {
+        const kept = { collections, openRequestId };
+        setCollections(removeItem(collections, id));
+        setNotice('Removed ' + label + '.', () => {
+          openRequestId = kept.openRequestId;
+          saveOpenRequestId(openRequestId);
+          setCollections(kept.collections);
+          setNotice('');
+        });
+      },
+    });
+  }
+
+  /** Save: updates the open saved request, or asks where to save a new one. asNew forces the question. */
+  async function save(asNew) {
+    if (openRequestId && !asNew) {
+      setCollections(updateRequestDraft(collections, openRequestId, draft));
+      setNotice('Saved.');
+      return;
+    }
+    const target = await askSaveTarget(collections, suggestName(draft));
+    if (!target) return;
+    let next = collections;
+    let collectionId = target.collectionId;
+    if (!collectionId) {
+      collectionId = makeId();
+      next = addCollection(next, target.newCollectionName, collectionId);
+    }
+    const id = makeId();
+    next = addRequest(next, { collectionId, folderId: target.folderId, name: target.name, draft, id });
+    openRequestId = id;
+    saveOpenRequestId(id);
+    setCollections(next);
+    showSidebarTab('tab-collections');
+    setNotice('Saved as ' + requestPath(collections, id) + '.');
+  }
+
+  $('save').addEventListener('click', () => save(false));
+  $('save-as').addEventListener('click', () => save(true));
+  $('new-request').addEventListener('click', () => openDraft(emptyDraft(), null));
+  $('new-collection').addEventListener('click', async () => {
+    const name = await askText({ title: 'New collection', label: 'Collection name', confirm: 'Create' });
+    if (name) setCollections(addCollection(collections, name, makeId()));
+  });
+
+  // ---- Export, import, clear ----
+
   $('export').addEventListener('click', () => {
-    const text = serializeHistory(history, new Date().toISOString());
+    const text = serializeWorkspace({ history, collections }, new Date().toISOString());
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     link.download = 'postman-alternative-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -163,11 +244,13 @@ export function startApp() {
     if (!file) return;
     try {
       const imported = parseExport(await file.text());
-      const before = history.length;
-      history = mergeHistory(history, imported);
+      const before = { history: history.length, requests: countRequests(collections) };
+      history = mergeHistory(history, imported.history);
       saveHistory(history);
       showHistory();
-      setNotice('Imported ' + (history.length - before) + ' new request(s) from ' + file.name + '.');
+      setCollections(mergeCollections(collections, imported.collections));
+      setNotice('Imported from ' + file.name + ': ' + (countRequests(collections) - before.requests) + ' saved request(s), '
+        + (history.length - before.history) + ' history entr(ies).');
     } catch (error) {
       setNotice(error.message);
     }
@@ -197,21 +280,41 @@ export function startApp() {
 
   showDraft();
   showHistory();
+  showCollections();
+  showSidebarTab(collections.length ? 'tab-collections' : 'tab-history');
 }
 
 /** Makes the tab buttons of one tab list show their own panel and hide the others. */
 function setUpTabs(groupId) {
   const group = document.getElementById(groupId);
   const tabs = [...group.querySelectorAll('[role=tab]')];
-  for (const tab of tabs) {
-    tab.addEventListener('click', () => {
-      for (const other of tabs) {
-        const selected = other === tab;
-        other.setAttribute('aria-selected', String(selected));
-        document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
-      }
-    });
+  for (const tab of tabs) tab.addEventListener('click', () => selectTab(tabs, tab));
+}
+
+/** Selects one tab of its list and shows its panel. */
+function selectTab(tabs, tab) {
+  for (const other of tabs) {
+    const selected = other === tab;
+    other.setAttribute('aria-selected', String(selected));
+    document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
   }
+}
+
+/** Shows one of the sidebar's tabs by its button id. */
+function showSidebarTab(tabId) {
+  const tabs = [...document.querySelectorAll('#sidebar-tabs [role=tab]')];
+  selectTab(tabs, document.getElementById(tabId));
+}
+
+/** A name to offer when saving: the last part of the address path, or the method alone. */
+function suggestName(draft) {
+  const path = (draft.url || '').replace(/^https?:\/\//i, '').split('?')[0].split('/').filter(Boolean);
+  return path.length > 1 ? draft.method + ' ' + path[path.length - 1] : draft.method + ' ' + (path[0] || 'request');
+}
+
+/** How many saved requests the collections hold in all. */
+function countRequests(collections) {
+  return collections.reduce((n, c) => n + c.requests.length, 0);
 }
 
 /** " (3)" for three rows that will be sent, or "" when none will. */

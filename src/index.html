@@ -31,16 +31,46 @@ aside { border-right: 1px solid var(--line); background: var(--panel); display: 
 aside header { padding: 14px 14px 8px; }
 aside h1 { font-size: 16px; margin: 0 0 2px; }
 aside .tagline { color: var(--muted); font-size: 12px; margin: 0; }
-.history-tools { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); align-items: center; }
-.history-tools h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 auto 0 0; }
-#history { list-style: none; margin: 0; padding: 4px 0; overflow: auto; flex: 1; }
+.workspace-tools { display: flex; gap: 6px; padding: 0 14px 8px; }
+.sidebar-tabs { padding: 0 8px; margin: 0; }
+.sidebar-panel { overflow: auto; flex: 1; min-height: 0; }
+.panel-tools { padding: 8px 14px 4px; }
+.empty { color: var(--muted); font-size: 12px; padding: 4px 14px; margin: 0; }
+#history { list-style: none; margin: 0; padding: 4px 0; }
+.collection { padding: 4px 0 8px; }
+.item { display: flex; align-items: center; gap: 4px; padding: 3px 8px 3px 14px; min-height: 28px; }
+.item:hover { background: var(--code); }
+.item .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.item .tools { display: flex; opacity: 0; }
+.item:hover .tools, .item:focus-within .tools { opacity: 1; }
+.item .tools .icon { font-size: 14px; padding: 0 4px; }
+.collection-name { font-weight: 600; }
+.folder-name { padding-left: 26px; color: var(--muted); }
+.folder-name .label::before { content: "B8  "; }
+.request .open { display: flex; gap: 8px; flex: 1; min-width: 0; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; align-items: baseline; }
+.request { padding-left: 26px; }
+.request.in-folder { padding-left: 40px; }
+.request.current { background: var(--code); box-shadow: inset 3px 0 var(--accent); }
+.method { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: var(--muted); min-width: 52px; }
+.title-line { display: flex; gap: 8px; align-items: center; min-height: 26px; }
+#request-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dirty { color: var(--redirect); font-size: 12px; white-space: nowrap; }
+.spacer { flex: 1; }
+dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); padding: 18px; width: min(420px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(0, 0, 0, .35); }
+dialog h2 { font-size: 16px; margin: 0 0 12px; }
+dialog label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 10px; }
+dialog label span { font-size: 12px; color: var(--muted); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+button.primary { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 6px; padding: 6px 16px; font-weight: 600; cursor: pointer; }
 #history button { display: flex; gap: 8px; width: 100%; text-align: left; border: 0; background: none; padding: 6px 14px; cursor: pointer; align-items: baseline; }
 #history button:hover { background: var(--code); }
 #history .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .outcome { font-family: ui-monospace, Consolas, monospace; font-size: 12px; min-width: 40px; }
 .ok { color: var(--ok); } .redirect { color: var(--redirect); } .client-error { color: var(--client-error); }
 .server-error { color: var(--server-error); } .failed { color: var(--failed); }
-#history-empty, #notice { color: var(--muted); font-size: 12px; padding: 8px 14px; margin: 0; }
+#notice { color: var(--muted); font-size: 12px; padding: 0 14px 6px; margin: 0; }
+#notice:empty { display: none; }
 main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 14px 16px; gap: 10px; overflow: auto; }
 #request-line { display: flex; gap: 8px; }
 #method { width: 110px; font-weight: 600; }
@@ -88,18 +118,35 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
       <h1>A Postman Alternative</h1>
       <p class="tagline">An HTTP client in one file.</p>
     </header>
-    <div class="history-tools">
-      <h2>History</h2>
-      <button type="button" class="small" id="export" title="Save the history as a JSON file">Export</button>
-      <button type="button" class="small" id="import" title="Add the requests from an exported file">Import</button>
-      <button type="button" class="small" id="clear" title="Remove every request from the history">Clear</button>
+    <div class="workspace-tools">
+      <button type="button" class="small" id="export" title="Save history and collections to a JSON file">Export</button>
+      <button type="button" class="small" id="import" title="Add the history and collections of an exported file">Import</button>
     </div>
     <p id="notice" aria-live="polite"></p>
-    <p id="history-empty">Requests you send appear here. Click one to load it again.</p>
-    <ul id="history"></ul>
+    <div role="tablist" id="sidebar-tabs" class="sidebar-tabs">
+      <button type="button" role="tab" id="tab-collections" aria-controls="collections-panel" aria-selected="true">Collections</button>
+      <button type="button" role="tab" id="tab-history" aria-controls="history-panel" aria-selected="false">History</button>
+    </div>
+    <div id="collections-panel" role="tabpanel" class="sidebar-panel">
+      <div class="panel-tools"><button type="button" class="small" id="new-collection">New collection</button></div>
+      <div id="collections"></div>
+    </div>
+    <div id="history-panel" role="tabpanel" class="sidebar-panel" hidden>
+      <div class="panel-tools"><button type="button" class="small" id="clear" title="Remove every request from the history">Clear history</button></div>
+      <p id="history-empty" class="empty">Requests you send appear here. Click one to load it again.</p>
+      <ul id="history"></ul>
+    </div>
     <input type="file" id="import-file" accept="application/json,.json" hidden>
   </aside>
   <main>
+    <div class="title-line">
+      <span id="request-title">Unsaved request</span>
+      <span id="request-dirty" class="dirty" title="Changed since it was saved" hidden>&#9679; unsaved changes</span>
+      <span class="spacer"></span>
+      <button type="button" class="small" id="new-request" title="Start an empty request">New</button>
+      <button type="button" class="small" id="save" title="Save (Ctrl+S)">Save</button>
+      <button type="button" class="small" id="save-as" title="Save as a new request (Ctrl+Shift+S)" hidden>Save as&hellip;</button>
+    </div>
     <form id="request-line" autocomplete="off">
       <select id="method" aria-label="Method"></select>
       <input type="text" id="url" placeholder="https://httpbin.org/get" aria-label="Address" spellcheck="false">
@@ -148,6 +195,7 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
     </section>
   </main>
 </div>
+<dialog id="dialog"></dialog>
 <script>
 /*@bundle@*/
 </script>

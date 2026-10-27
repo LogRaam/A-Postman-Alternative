@@ -1,5 +1,8 @@
 /** The list of requests already sent: newest first, capped, each one enough to reload the editor. */
 
+import { copyDraft } from './draft.js';
+import { makeId } from './ids.js';
+
 /** How many sent requests are kept; the oldest go first. */
 export const HISTORY_LIMIT = 100;
 
@@ -9,7 +12,7 @@ export const HISTORY_LIMIT = 100;
  */
 export function historyEntry(draft, outcome, sentAt) {
   return {
-    id: sentAt + '-' + Math.random().toString(36).slice(2, 8),
+    id: makeId(sentAt),
     sentAt,
     draft: copyDraft(draft),
     status: outcome.status ?? null,
@@ -36,16 +39,4 @@ export function mergeHistory(history, imported, limit = HISTORY_LIMIT) {
 export function historyLabel(entry) {
   const address = (entry.draft.url || '').replace(/^https?:\/\//i, '');
   return entry.draft.method + ' ' + (address || '(no address)');
-}
-
-/** A deep copy of a draft, rows included. */
-export function copyDraft(draft) {
-  return {
-    method: draft.method,
-    url: draft.url,
-    params: (draft.params || []).map(row => ({ ...row })),
-    headers: (draft.headers || []).map(row => ({ ...row })),
-    bodyMode: draft.bodyMode,
-    body: draft.body,
-  };
 }

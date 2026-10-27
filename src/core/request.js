@@ -18,11 +18,6 @@ const FORBIDDEN_HEADERS = [
   'origin', 'referer', 'set-cookie', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'user-agent', 'via',
 ];
 
-/** A new, empty draft: what the editor shows on first open. */
-export function emptyDraft() {
-  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '' };
-}
-
 /** True when the browser will drop this header name rather than send it. */
 export function isForbiddenHeader(name) {
   const lower = (name || '').trim().toLowerCase();

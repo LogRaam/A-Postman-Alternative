@@ -3,7 +3,8 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildUrl, enabledRows } from '../src/core/url.js';
-import { toFetchRequest, emptyDraft, isForbiddenHeader } from '../src/core/request.js';
+import { toFetchRequest, isForbiddenHeader } from '../src/core/request.js';
+import { emptyDraft } from '../src/core/draft.js';
 
 const draft = changes => ({ ...emptyDraft(), url: 'https://example.com/items', ...changes });
 

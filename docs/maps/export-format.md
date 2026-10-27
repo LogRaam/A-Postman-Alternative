@@ -33,3 +33,26 @@ mode, until it is declared on purpose with `ALLOW_FORMAT_FIELD_REMOVAL=1` and ex
 | `history[].draft.body` | string |
 | `history[].status` | number or null |
 | `history[].error` | string or null |
+| `collections` | array |
+| `collections[].id` | string |
+| `collections[].name` | string |
+| `collections[].folders` | array |
+| `collections[].folders[].id` | string |
+| `collections[].folders[].name` | string |
+| `collections[].requests` | array |
+| `collections[].requests[].id` | string |
+| `collections[].requests[].name` | string |
+| `collections[].requests[].folderId` | string or null |
+| `collections[].requests[].draft` | object |
+| `collections[].requests[].draft.method` | string |
+| `collections[].requests[].draft.url` | string |
+| `collections[].requests[].draft.params` | array |
+| `collections[].requests[].draft.params[].enabled` | boolean |
+| `collections[].requests[].draft.params[].key` | string |
+| `collections[].requests[].draft.params[].value` | string |
+| `collections[].requests[].draft.headers` | array |
+| `collections[].requests[].draft.headers[].enabled` | boolean |
+| `collections[].requests[].draft.headers[].key` | string |
+| `collections[].requests[].draft.headers[].value` | string |
+| `collections[].requests[].draft.bodyMode` | string |
+| `collections[].requests[].draft.body` | string |

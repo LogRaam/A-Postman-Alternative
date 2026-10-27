@@ -1,5 +1,5 @@
 /**
- * Working state kept in the browser between visits: the current draft and the history. localStorage can
+ * Working state kept in the browser between visits: the draft, the history and the collections. localStorage can
  * be missing or throw (private windows, blocked site data, file:// in some browsers), so every access is
  * guarded and the app works without it. The durable copy is the export file, not this.
  */
@@ -8,6 +8,32 @@
 const DRAFT_KEY = 'postman-alternative.draft.v1';
 /** Storage key of the history list. */
 const HISTORY_KEY = 'postman-alternative.history.v1';
+/** Storage key of the collections. */
+const COLLECTIONS_KEY = 'postman-alternative.collections.v1';
+/** Storage key of the id of the saved request open in the editor. */
+const OPEN_REQUEST_KEY = 'postman-alternative.open-request.v1';
+
+/** The saved collections, or an empty list. */
+export function loadCollections() {
+  const collections = readJson(COLLECTIONS_KEY);
+  return Array.isArray(collections) ? collections : [];
+}
+
+/** Saves the collections; silently does nothing when storage is unavailable. */
+export function saveCollections(collections) {
+  writeJson(COLLECTIONS_KEY, collections);
+}
+
+/** The id of the saved request open in the editor, or null. */
+export function loadOpenRequestId() {
+  const id = readJson(OPEN_REQUEST_KEY);
+  return typeof id === 'string' ? id : null;
+}
+
+/** Remembers which saved request is open in the editor (null for none). */
+export function saveOpenRequestId(id) {
+  writeJson(OPEN_REQUEST_KEY, id);
+}
 
 /** The saved draft, or null when there is none or storage is unavailable. */
 export function loadDraft() {
