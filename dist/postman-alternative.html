@@ -63,6 +63,9 @@ dialog:has(form.wide) { width: min(640px, calc(100vw - 32px)); }
 .env-bar { display: flex; gap: 6px; margin-bottom: 10px; }
 .env-bar select { flex: 1; }
 .env-rows { margin-bottom: 8px; }
+.auth-field { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-width: 520px; }
+.auth-field span { font-size: 12px; color: var(--muted); }
+input[type=password] { background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); padding: 18px; width: min(420px, calc(100vw - 32px)); }
 dialog::backdrop { background: rgba(0, 0, 0, .35); }
 dialog h2 { font-size: 16px; margin: 0 0 12px; }
@@ -167,9 +170,11 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
         <button type="button" role="tab" id="tab-params" aria-controls="params" aria-selected="true">Params</button>
         <button type="button" role="tab" id="tab-headers" aria-controls="headers" aria-selected="false">Headers</button>
         <button type="button" role="tab" id="tab-body" aria-controls="body-panel" aria-selected="false">Body</button>
+        <button type="button" role="tab" id="tab-auth" aria-controls="auth" aria-selected="false">Auth</button>
       </div>
       <div id="params" role="tabpanel"></div>
       <div id="headers" role="tabpanel" hidden></div>
+      <div id="auth" role="tabpanel" hidden></div>
       <div id="body-panel" role="tabpanel" hidden>
         <div class="body-line">
           <select id="body-mode" aria-label="Body type">
@@ -260,6 +265,56 @@ function buildUrl(address, paramRows) {
   return url.toString();
 }
 
+// ---- src/core/auth.js ----
+/**
+ * Authentication from the Auth tab: a Bearer token or a Basic user name and password, turned into the
+ * Authorization header. Values are kept in plain text in the browser and in exports, like everything else.
+ */
+
+/** The kinds offered in the Auth tab, in menu order. */
+const AUTH_TYPES = ['none', 'bearer', 'basic'];
+
+/** Every field of the auth settings, as [path, type], for the export file's validator and map. */
+const AUTH_FIELDS = [
+  ['type', 'string'],
+  ['token', 'string'],
+  ['username', 'string'],
+  ['password', 'string'],
+];
+
+/** No authentication: what a new draft, and a draft from before the Auth tab existed, carries. */
+function noAuth() {
+  return { type: 'none', token: '', username: '', password: '' };
+}
+
+/** The auth settings with every field present; missing ones (older data) get the no-auth defaults. */
+function copyAuth(auth) {
+  return { ...noAuth(), ...(auth || {}) };
+}
+
+/** The Authorization header for these settings as [name, value], or null for none. */
+function authHeader(auth) {
+  if (!auth) return null;
+  if (auth.type === 'bearer') return auth.token !== '' ? ['Authorization', 'Bearer ' + auth.token] : null;
+  if (auth.type === 'basic') return ['Authorization', 'Basic ' + base64Utf8(auth.username + ':' + auth.password)];
+  return null;
+}
+
+/** What the user should know before trusting the result: an empty token, or a header typed by hand that wins. */
+function authWarnings(auth, headerTypedByHand) {
+  if (!auth || auth.type === 'none') return [];
+  if (headerTypedByHand) return ['An Authorization header is set in the Headers tab; it was sent instead of the Auth tab.'];
+  if (auth.type === 'bearer' && auth.token === '') return ['The Bearer token is empty; no Authorization header was sent.'];
+  return [];
+}
+
+/** Base64 of the UTF-8 bytes of a text, as Basic authentication requires (btoa alone fails beyond Latin-1). */
+function base64Utf8(text) {
+  let binary = '';
+  for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
 // ---- src/core/request.js ----
 /** Turning the editor's draft into what fetch() is called with, and saying what the browser will refuse. */
 
@@ -293,7 +348,8 @@ function methodTakesNoBody(method) {
 
 /**
  * The URL and fetch() options for a draft, plus warnings the user should see before reading the response
- * (headers the browser drops, a body ignored by GET). Throws a plain-language error for a draft that cannot
+ * (headers the browser drops, a body ignored by GET, an Auth tab overridden). The Auth tab becomes the
+ * Authorization header unless one was typed in the Headers tab. Throws a plain-language error for a draft that cannot
  * be sent at all (bad address, invalid JSON).
  */
 function toFetchRequest(draft) {
@@ -304,6 +360,12 @@ function toFetchRequest(draft) {
     if (isForbiddenHeader(row.key)) warnings.push('The browser does not let a page set "' + row.key + '"; it was not sent.');
     else headers.push([row.key, row.value]);
   }
+
+  // A header typed by hand in the Headers tab wins over the Auth tab, and the user is told.
+  const typedByHand = hasHeader(headers, 'authorization');
+  warnings.push(...authWarnings(draft.auth, typedByHand));
+  const fromAuth = typedByHand ? null : authHeader(draft.auth);
+  if (fromAuth) headers.push(fromAuth);
 
   let body;
   if (draft.bodyMode !== 'none' && (draft.body || '') !== '') {
@@ -357,11 +419,19 @@ const DRAFT_FIELDS = [
   ...fieldsAt('headers[]', ROW_FIELDS),
   ['bodyMode', 'string'],
   ['body', 'string'],
+  ['auth', 'object'],
+  ...fieldsAt('auth', AUTH_FIELDS),
 ];
+
+/**
+ * Draft text fields that are choices from a fixed list, not text the user types: never resolved against an
+ * environment. Every other string field of DRAFT_FIELDS is (tests/environments.test.mjs checks it).
+ */
+const DRAFT_CHOICE_FIELDS = ['method', 'bodyMode', 'auth.type'];
 
 /** A new, empty draft: what the editor shows on first open. */
 function emptyDraft() {
-  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '' };
+  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '', auth: noAuth() };
 }
 
 /** A deep copy of a draft, rows included, with every field present (a field missing from old data gets its default). */
@@ -374,6 +444,7 @@ function copyDraft(draft) {
     headers: (draft.headers || []).map(copyRow),
     bodyMode: draft.bodyMode ?? empty.bodyMode,
     body: draft.body ?? empty.body,
+    auth: copyAuth(draft.auth),
   };
 }
 
@@ -467,9 +538,9 @@ function substitute(text, values, missing) {
 }
 
 /**
- * The draft as it will be sent: every {{name}} in the address, parameters, headers and body replaced by the
- * environment's value. Returns the resolved copy and the names no variable defines. With no environment,
- * every reference is missing.
+ * The draft as it will be sent: every {{name}} in the address, parameters, headers, body and auth replaced by
+ * the environment's value. Returns the resolved copy and the names no variable defines; with no environment,
+ * every reference is missing. A body or auth not in use is left alone, so it reports nothing missing.
  */
 function resolveDraft(draft, environment) {
   const values = new Map(enabledRows(environment ? environment.variables : []).map(row => [row.key, row.value]));
@@ -480,6 +551,9 @@ function resolveDraft(draft, environment) {
   resolved.params = resolveRows(resolved.params);
   resolved.headers = resolveRows(resolved.headers);
   if (resolved.bodyMode !== 'none') resolved.body = substitute(resolved.body, values, missing);
+  if (resolved.auth.type !== 'none') {
+    for (const field of ['token', 'username', 'password']) resolved.auth[field] = substitute(resolved.auth[field], values, missing);
+  }
   return { draft: resolved, missing: [...missing] };
 }
 
@@ -1276,6 +1350,55 @@ function smallButton(text, title) {
   return button;
 }
 
+// ---- src/ui/auth-editor.js ----
+/** The Auth tab of the editor: no authentication, a Bearer token, or Basic user name and password. */
+
+
+const AUTH_LABELS = { none: 'No authentication', bearer: 'Bearer token', basic: 'Basic (user name and password)' };
+
+/** Draws the auth settings into the container and calls onChange with new settings after every edit. */
+function renderAuth(container, auth, onChange) {
+  const current = copyAuth(auth);
+  container.replaceChildren();
+
+  const type = document.createElement('select');
+  type.setAttribute('aria-label', 'Authentication type');
+  for (const [value, label] of Object.entries(AUTH_LABELS)) type.append(new Option(label, value));
+  type.value = current.type;
+  type.addEventListener('change', () => {
+    current.type = type.value;
+    onChange(copyAuth(current));
+    renderAuth(container, current, onChange);
+  });
+  container.append(type);
+
+  const input = (label, field, inputType) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'auth-field';
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    const box = document.createElement('input');
+    box.type = inputType;
+    box.spellcheck = false;
+    box.autocomplete = 'off';
+    box.value = current[field];
+    box.placeholder = 'Text, or a {{variable}}';
+    box.addEventListener('input', () => { current[field] = box.value; onChange(copyAuth(current)); });
+    wrap.append(caption, box);
+    container.append(wrap);
+  };
+  if (current.type === 'bearer') input('Token', 'token', 'text');
+  if (current.type === 'basic') { input('User name', 'username', 'text'); input('Password', 'password', 'password'); }
+
+  if (current.type !== 'none') {
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'Sent as the Authorization header. Kept in plain text in this browser and in exports: '
+      + 'put secrets in an environment variable ({{token}}) and do not share that environment.';
+    container.append(note);
+  }
+}
+
 // ---- src/ui/response-view.js ----
 /** The response panel: status, time, size, body and headers of the last response, or why there is none. */
 
@@ -1357,6 +1480,7 @@ function startApp() {
     $('body').value = draft.body;
     renderRows($('params'), draft.params, rows => { draft.params = rows; changed(); }, { keyPlaceholder: 'Parameter' });
     renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
+    renderAuth($('auth'), draft.auth, auth => { draft.auth = auth; changed(); });
     refreshBodyHint();
     refreshTitle();
     refreshPreview();
@@ -1369,6 +1493,7 @@ function startApp() {
       : '';
     $('tab-params').textContent = 'Params' + countLabel(draft.params);
     $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
+    $('tab-auth').textContent = draft.auth.type === 'none' ? 'Auth' : 'Auth (' + draft.auth.type + ')';
   }
 
   /** The line above the editor: which saved request is open, and whether the editor differs from it. */

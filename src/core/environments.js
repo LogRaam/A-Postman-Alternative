@@ -54,9 +54,9 @@ export function substitute(text, values, missing) {
 }
 
 /**
- * The draft as it will be sent: every {{name}} in the address, parameters, headers and body replaced by the
- * environment's value. Returns the resolved copy and the names no variable defines. With no environment,
- * every reference is missing.
+ * The draft as it will be sent: every {{name}} in the address, parameters, headers, body and auth replaced by
+ * the environment's value. Returns the resolved copy and the names no variable defines; with no environment,
+ * every reference is missing. A body or auth not in use is left alone, so it reports nothing missing.
  */
 export function resolveDraft(draft, environment) {
   const values = new Map(enabledRows(environment ? environment.variables : []).map(row => [row.key, row.value]));
@@ -67,6 +67,9 @@ export function resolveDraft(draft, environment) {
   resolved.params = resolveRows(resolved.params);
   resolved.headers = resolveRows(resolved.headers);
   if (resolved.bodyMode !== 'none') resolved.body = substitute(resolved.body, values, missing);
+  if (resolved.auth.type !== 'none') {
+    for (const field of ['token', 'username', 'password']) resolved.auth[field] = substitute(resolved.auth[field], values, missing);
+  }
   return { draft: resolved, missing: [...missing] };
 }
 

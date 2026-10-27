@@ -5,6 +5,7 @@
 
 import { copyRow, ROW_FIELDS } from './rows.js';
 import { fieldsAt } from './fields.js';
+import { noAuth, copyAuth, AUTH_FIELDS } from './auth.js';
 
 /** Every field of a draft, as [path, type], for the export file's validator and map. "[]" marks array items. */
 export const DRAFT_FIELDS = [
@@ -16,11 +17,19 @@ export const DRAFT_FIELDS = [
   ...fieldsAt('headers[]', ROW_FIELDS),
   ['bodyMode', 'string'],
   ['body', 'string'],
+  ['auth', 'object'],
+  ...fieldsAt('auth', AUTH_FIELDS),
 ];
+
+/**
+ * Draft text fields that are choices from a fixed list, not text the user types: never resolved against an
+ * environment. Every other string field of DRAFT_FIELDS is (tests/environments.test.mjs checks it).
+ */
+export const DRAFT_CHOICE_FIELDS = ['method', 'bodyMode', 'auth.type'];
 
 /** A new, empty draft: what the editor shows on first open. */
 export function emptyDraft() {
-  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '' };
+  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '', auth: noAuth() };
 }
 
 /** A deep copy of a draft, rows included, with every field present (a field missing from old data gets its default). */
@@ -33,6 +42,7 @@ export function copyDraft(draft) {
     headers: (draft.headers || []).map(copyRow),
     bodyMode: draft.bodyMode ?? empty.bodyMode,
     body: draft.body ?? empty.body,
+    auth: copyAuth(draft.auth),
   };
 }
 

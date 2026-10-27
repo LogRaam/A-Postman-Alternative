@@ -18,6 +18,7 @@ import { renderHistory } from './history-panel.js';
 import { renderCollections } from './collections-panel.js';
 import { askText, askSaveTarget } from './dialogs.js';
 import { manageEnvironments } from './environments-dialog.js';
+import { renderAuth } from './auth-editor.js';
 import { showResponse, showError, setSending } from './response-view.js';
 
 /** Starts the app once the page is loaded. */
@@ -44,6 +45,7 @@ export function startApp() {
     $('body').value = draft.body;
     renderRows($('params'), draft.params, rows => { draft.params = rows; changed(); }, { keyPlaceholder: 'Parameter' });
     renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
+    renderAuth($('auth'), draft.auth, auth => { draft.auth = auth; changed(); });
     refreshBodyHint();
     refreshTitle();
     refreshPreview();
@@ -56,6 +58,7 @@ export function startApp() {
       : '';
     $('tab-params').textContent = 'Params' + countLabel(draft.params);
     $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
+    $('tab-auth').textContent = draft.auth.type === 'none' ? 'Auth' : 'Auth (' + draft.auth.type + ')';
   }
 
   /** The line above the editor: which saved request is open, and whether the editor differs from it. */

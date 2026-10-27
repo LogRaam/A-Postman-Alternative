@@ -2,6 +2,7 @@
 
 import { buildUrl } from './url.js';
 import { enabledRows } from './rows.js';
+import { authHeader, authWarnings } from './auth.js';
 
 /** The methods offered in the editor, in menu order. */
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
@@ -32,7 +33,8 @@ export function methodTakesNoBody(method) {
 
 /**
  * The URL and fetch() options for a draft, plus warnings the user should see before reading the response
- * (headers the browser drops, a body ignored by GET). Throws a plain-language error for a draft that cannot
+ * (headers the browser drops, a body ignored by GET, an Auth tab overridden). The Auth tab becomes the
+ * Authorization header unless one was typed in the Headers tab. Throws a plain-language error for a draft that cannot
  * be sent at all (bad address, invalid JSON).
  */
 export function toFetchRequest(draft) {
@@ -43,6 +45,12 @@ export function toFetchRequest(draft) {
     if (isForbiddenHeader(row.key)) warnings.push('The browser does not let a page set "' + row.key + '"; it was not sent.');
     else headers.push([row.key, row.value]);
   }
+
+  // A header typed by hand in the Headers tab wins over the Auth tab, and the user is told.
+  const typedByHand = hasHeader(headers, 'authorization');
+  warnings.push(...authWarnings(draft.auth, typedByHand));
+  const fromAuth = typedByHand ? null : authHeader(draft.auth);
+  if (fromAuth) headers.push(fromAuth);
 
   let body;
   if (draft.bodyMode !== 'none' && (draft.body || '') !== '') {

@@ -63,6 +63,9 @@ dialog:has(form.wide) { width: min(640px, calc(100vw - 32px)); }
 .env-bar { display: flex; gap: 6px; margin-bottom: 10px; }
 .env-bar select { flex: 1; }
 .env-rows { margin-bottom: 8px; }
+.auth-field { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; max-width: 520px; }
+.auth-field span { font-size: 12px; color: var(--muted); }
+input[type=password] { background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); padding: 18px; width: min(420px, calc(100vw - 32px)); }
 dialog::backdrop { background: rgba(0, 0, 0, .35); }
 dialog h2 { font-size: 16px; margin: 0 0 12px; }
@@ -167,9 +170,11 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
         <button type="button" role="tab" id="tab-params" aria-controls="params" aria-selected="true">Params</button>
         <button type="button" role="tab" id="tab-headers" aria-controls="headers" aria-selected="false">Headers</button>
         <button type="button" role="tab" id="tab-body" aria-controls="body-panel" aria-selected="false">Body</button>
+        <button type="button" role="tab" id="tab-auth" aria-controls="auth" aria-selected="false">Auth</button>
       </div>
       <div id="params" role="tabpanel"></div>
       <div id="headers" role="tabpanel" hidden></div>
+      <div id="auth" role="tabpanel" hidden></div>
       <div id="body-panel" role="tabpanel" hidden>
         <div class="body-line">
           <select id="body-mode" aria-label="Body type">

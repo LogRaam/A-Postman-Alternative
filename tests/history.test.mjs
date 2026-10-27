@@ -30,7 +30,10 @@ describe('History', () => {
 describe('The draft', () => {
   test('a copy fills fields missing from older data with their defaults', () => {
     assert.deepEqual(copyDraft({ url: 'https://a', headers: [{ key: 'X' }] }),
-      { method: 'GET', url: 'https://a', params: [], headers: [{ enabled: true, key: 'X', value: '' }], bodyMode: 'none', body: '' });
+      {
+        method: 'GET', url: 'https://a', params: [], headers: [{ enabled: true, key: 'X', value: '' }], bodyMode: 'none', body: '',
+        auth: { type: 'none', token: '', username: '', password: '' },
+      });
   });
   test('two drafts are the same when they would send the same request', () => {
     assert.ok(sameDraft({ ...emptyDraft(), url: 'https://a' }, { url: 'https://a' }));

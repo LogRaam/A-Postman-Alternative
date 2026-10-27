@@ -31,6 +31,11 @@ mode, until it is declared on purpose with `ALLOW_FORMAT_FIELD_REMOVAL=1` and ex
 | `history[].draft.headers[].value` | string |
 | `history[].draft.bodyMode` | string |
 | `history[].draft.body` | string |
+| `history[].draft.auth` | object |
+| `history[].draft.auth.type` | string |
+| `history[].draft.auth.token` | string |
+| `history[].draft.auth.username` | string |
+| `history[].draft.auth.password` | string |
 | `history[].status` | number or null |
 | `history[].error` | string or null |
 | `collections` | array |
@@ -56,6 +61,11 @@ mode, until it is declared on purpose with `ALLOW_FORMAT_FIELD_REMOVAL=1` and ex
 | `collections[].requests[].draft.headers[].value` | string |
 | `collections[].requests[].draft.bodyMode` | string |
 | `collections[].requests[].draft.body` | string |
+| `collections[].requests[].draft.auth` | object |
+| `collections[].requests[].draft.auth.type` | string |
+| `collections[].requests[].draft.auth.token` | string |
+| `collections[].requests[].draft.auth.username` | string |
+| `collections[].requests[].draft.auth.password` | string |
 | `environments` | array |
 | `environments[].id` | string |
 | `environments[].name` | string |
