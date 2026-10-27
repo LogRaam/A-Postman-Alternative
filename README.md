@@ -51,6 +51,9 @@ npm run update-maps    # regenerates docs/maps and prints what moved
 
 ### The maps
 
+The method, and what it caught while this app was built, is presented for enterprise architecture in
+[docs/demo-architecture.html](docs/demo-architecture.html) (in French; open the file in a browser).
+
 `docs/maps/` holds views of the code generated from the source (an inventory, the dependencies, the rules the
 tests promise, the export format), checked by the test suite. Read [docs/maps/README.md](docs/maps/README.md)
 before changing anything. The method is the

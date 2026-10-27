@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="fr-CA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Développement citoyen, sous contrôle</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column (~68ch) with wider bands for the loop, the timeline and the chart; survey-map palette. */
+:root {
+  --paper: #f4f6f5;
+  --sheet: #ffffff;
+  --ink: #1b2422;
+  --muted: #5b6764;
+  --rule: #d7dedb;
+  --survey: #1f6f5c;
+  --survey-soft: #e3efeb;
+  --ochre: #9a6200;
+  --ochre-soft: #f7ecd6;
+  --alarm: #a63a2a;
+  --alarm-soft: #f8e4e0;
+  --code: #eef1f0;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #121816; --sheet: #19211f; --ink: #e6ecea; --muted: #9aa8a4; --rule: #2c3734;
+    --survey: #5cc3a6; --survey-soft: #1b3029; --ochre: #e0a840; --ochre-soft: #33290f;
+    --alarm: #f08a78; --alarm-soft: #3a1f1a; --code: #202a27; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #121816; --sheet: #19211f; --ink: #e6ecea; --muted: #9aa8a4; --rule: #2c3734;
+  --survey: #5cc3a6; --survey-soft: #1b3029; --ochre: #e0a840; --ochre-soft: #33290f;
+  --alarm: #f08a78; --alarm-soft: #3a1f1a; --code: #202a27; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 48px 72px;
+}
+.page { max-width: 1040px; margin: 0 auto; display: grid; gap: 64px; }
+.read { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(2rem, 5vw, 3.3rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; }
+h3 { font-size: 1.1rem; font-weight: 500; }
+p { margin: 0; }
+section { display: grid; gap: 18px; }
+.eyebrow { font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--survey); }
+.lead { font-size: 1.25rem; color: var(--ink); max-width: 60ch; }
+.muted { color: var(--muted); }
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--survey); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--survey); outline-offset: 2px; }
+
+/* Hero facts: a survey-sheet legend, not tiles */
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); border-top: 2px solid var(--ink); border-bottom: 1px solid var(--rule); }
+.legend div { padding: 14px 14px 14px 0; display: grid; gap: 2px; }
+.legend b { font-family: var(--display); font-size: 1.9rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.legend span { font-size: 0.9rem; color: var(--muted); }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 28px; }
+.two > * { min-width: 0; }
+.quote { border-left: 3px solid var(--ochre); padding: 4px 0 4px 16px; color: var(--ink); font-style: italic; }
+
+/* The loop diagram */
+.figure { background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; overflow-x: auto; }
+.figure svg { display: block; min-width: 760px; width: 100%; height: auto; }
+.figure figcaption, .caption { font-size: 0.9rem; color: var(--muted); margin-top: 10px; }
+svg text { font-family: var(--body); fill: var(--ink); }
+svg .small { font-size: 12px; fill: var(--muted); }
+svg .num { font-family: var(--mono); font-size: 12px; fill: var(--survey); }
+svg .box { fill: var(--sheet); stroke: var(--rule); stroke-width: 1.5; }
+svg .box.key { fill: var(--survey-soft); stroke: var(--survey); }
+svg .arrow { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+svg .arrowhead { fill: var(--muted); }
+
+/* Two kinds of test */
+.kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+.kind { background: var(--sheet); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; display: grid; gap: 8px; align-content: start; }
+.kind ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.tag { display: inline-block; font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; justify-self: start; }
+.tag.inform { background: var(--survey-soft); color: var(--survey); }
+.tag.block { background: var(--alarm-soft); color: var(--alarm); }
+.tag.missed { background: var(--ochre-soft); color: var(--ochre); }
+
+/* Timeline of commits */
+.scroll { overflow-x: auto; border: 1px solid var(--rule); border-radius: 10px; background: var(--sheet); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 0.95rem; }
+th, td { text-align: left; vertical-align: top; padding: 12px 14px; border-bottom: 1px solid var(--rule); }
+th { font-family: var(--mono); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+tr:last-child td { border-bottom: 0; }
+td.commit { font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; color: var(--survey); }
+td.commit span { display: block; color: var(--muted); font-size: 0.78rem; }
+
+/* Bar chart */
+.chart svg { min-width: 640px; }
+.bar { fill: var(--survey); }
+.bar.over { fill: var(--ochre); }
+.bar.after { fill: var(--survey); }
+.limit { stroke: var(--alarm); stroke-width: 1.5; stroke-dasharray: 5 4; }
+.gridline { stroke: var(--rule); stroke-width: 1; }
+
+/* Guarantees list */
+.guarantees { display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.guarantees div { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 20px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.guarantees b { font-family: var(--display); font-weight: 500; }
+@media (max-width: 560px) { .guarantees div { grid-template-columns: 1fr; gap: 4px; } }
+
+/* Demo script */
+.steps { counter-reset: step; display: grid; gap: 14px; padding: 0; margin: 0; list-style: none; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 42px minmax(0, 1fr); gap: 12px; align-items: start; }
+.steps li::before { content: counter(step); font-family: var(--display); font-weight: 700; font-size: 1.2rem; color: var(--survey); border: 1.5px solid var(--survey); border-radius: 50%; width: 34px; height: 34px; display: grid; place-items: center; }
+.steps .say { color: var(--muted); font-size: 0.95rem; }
+.steps li > .cmd { grid-column: 2; }
+.cmd { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.cmd code { display: block; padding: 6px 10px; overflow-x: auto; max-width: 100%; min-width: 0; white-space: pre; }
+.cmd button { font: 600 0.8rem var(--body); border: 1px solid var(--rule); background: var(--sheet); color: var(--ink); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+.time { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); }
+
+.limits { display: grid; gap: 10px; padding-left: 18px; margin: 0; }
+footer { border-top: 1px solid var(--rule); padding-top: 18px; font-size: 0.92rem; color: var(--muted); display: grid; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) {
+  .legend b { transition: color .2s; }
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+  <header class="read" style="display:grid;gap:20px;max-width:none">
+    <p class="eyebrow">Démo à l'architecture d'entreprise · 26 octobre 2026</p>
+    <h1>Une application complète, faite par un développeur citoyen et une IA, sans perdre le plan de l'architecture</h1>
+    <p class="lead">Voici un client HTTP dans l'esprit de Postman, construit en une session, versionné, testé, et surtout lisible : chaque changement laisse une trace architecturale que l'on peut réviser.</p>
+    <div class="legend" aria-label="Le projet en chiffres">
+      <div><b>1</b><span>fichier HTML à ouvrir, rien à installer</span></div>
+      <div><b>0</b><span>dépendance livrée</span></div>
+      <div><b>83</b><span>tests qui tournent à chaque changement, dont 8 dans un vrai navigateur</span></div>
+      <div><b>5</b><span>maps générées depuis le code</span></div>
+      <div><b>11</b><span>commits, chacun expliqué</span></div>
+    </div>
+  </header>
+
+  <section class="read">
+    <p class="eyebrow">Le problème</p>
+    <h2>Quand l'IA écrit le code, la première chose qui se perd, c'est de savoir ce qui existe déjà</h2>
+    <p>Une IA ne garde aucune mémoire d'une séance à l'autre. Elle ne connaît que ce qu'elle lit. Rien ne la pousse à chercher si un concept existe déjà, alors elle le recrée, proprement, sous un autre nom. Chaque classe est correcte; c'est le concept qui s'éparpille.</p>
+    <p>Sur ce projet même, en une soirée, trois règles ont été réécrites à côté de l'originale : la règle « une ligne compte si elle est cochée et nommée », la règle « un nom vide prend une valeur par défaut », et la copie d'une ligne clé-valeur. Aucune revue de code ligne par ligne ne les aurait vues; elles étaient chacune dans un fichier différent.</p>
+    <p class="quote">Un fichier de règles pour l'IA est un conseil, et il vieillit. Une documentation écrite à la main pourrit en silence, et on continue de s'y fier.</p>
+  </section>
+
+  <section>
+    <div class="read" style="display:grid;gap:18px">
+      <p class="eyebrow">La méthode</p>
+      <h2>Des « maps » générées depuis le code, et un test qui échoue quand elles ne sont plus vraies</h2>
+      <p>Une map est une vue du système (inventaire des modules, dépendances, règles promises par les tests, format des fichiers d'export) générée à partir du code source et commitée comme un fichier ordinaire. Un test la régénère et la compare à la copie commitée. Si le code a bougé et pas la map, la suite de tests échoue. Le test est le déclencheur : la map ne peut pas vieillir.</p>
+      <p>Chaque changement produit donc deux diffs : celui du code, et celui de la map, qui dit ce que le changement veut dire pour la structure. Pour un réviseur, c'est souvent le seul qui vaut la peine d'être lu.</p>
+    </div>
+    <figure class="figure" style="margin:0">
+      <svg viewBox="0 0 960 230" role="img" aria-labelledby="loop-title loop-desc">
+        <title id="loop-title">La boucle suivie à chaque changement</title>
+        <desc id="loop-desc">Six étapes de gauche à droite : lire la map, changer le code, lancer les tests en mode comparaison, lire chaque écart, régénérer, commiter les maps avec le code. Une flèche revient au début pour le changement suivant.</desc>
+        <defs><marker id="head" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="arrowhead" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+        <g>
+          <rect class="box key" x="10" y="40" width="138" height="92" rx="8"/>
+          <text x="79" y="72" text-anchor="middle" font-weight="600">Lire la map</text>
+          <text class="small" x="79" y="94" text-anchor="middle">ce concept existe-t-il</text>
+          <text class="small" x="79" y="110" text-anchor="middle">déjà ?</text>
+
+          <rect class="box" x="168" y="40" width="138" height="92" rx="8"/>
+          <text x="237" y="72" text-anchor="middle" font-weight="600">Changer le code</text>
+          <text class="small" x="237" y="94" text-anchor="middle">avec ses tests</text>
+
+          <rect class="box key" x="326" y="40" width="138" height="92" rx="8"/>
+          <text x="395" y="72" text-anchor="middle" font-weight="600">Tester d'abord</text>
+          <text class="small" x="395" y="94" text-anchor="middle">en mode comparaison,</text>
+          <text class="small" x="395" y="110" text-anchor="middle">jamais régénérer avant</text>
+
+          <rect class="box key" x="484" y="40" width="138" height="92" rx="8"/>
+          <text x="553" y="72" text-anchor="middle" font-weight="600">Lire chaque écart</text>
+          <text class="small" x="553" y="94" text-anchor="middle">est-ce le mouvement</text>
+          <text class="small" x="553" y="110" text-anchor="middle">voulu ?</text>
+
+          <rect class="box" x="642" y="40" width="138" height="92" rx="8"/>
+          <text x="711" y="72" text-anchor="middle" font-weight="600">Régénérer</text>
+          <text class="small" x="711" y="94" text-anchor="middle">le diff s'imprime</text>
+
+          <rect class="box" x="800" y="40" width="150" height="92" rx="8"/>
+          <text x="875" y="72" text-anchor="middle" font-weight="600">Commiter ensemble</text>
+          <text class="small" x="875" y="94" text-anchor="middle">le message dit ce que</text>
+          <text class="small" x="875" y="110" text-anchor="middle">les maps ont montré</text>
+
+          <path class="arrow" d="M148 86 H166" marker-end="url(#head)"/>
+          <path class="arrow" d="M306 86 H324" marker-end="url(#head)"/>
+          <path class="arrow" d="M464 86 H482" marker-end="url(#head)"/>
+          <path class="arrow" d="M622 86 H640" marker-end="url(#head)"/>
+          <path class="arrow" d="M780 86 H798" marker-end="url(#head)"/>
+          <path class="arrow" d="M875 132 V182 H79 V134" marker-end="url(#head)"/>
+          <text class="small" x="477" y="202" text-anchor="middle">changement suivant</text>
+          <text class="num" x="395" y="28" text-anchor="middle">l'étape que l'on saute le plus souvent</text>
+        </g>
+      </svg>
+      <figcaption>Les étapes en vert sont celles qui donnent sa valeur à la méthode. Régénérer avant de tester fait que chaque map se compare à elle-même et passe : l'écart n'est alors montré à personne.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="read" style="display:grid;gap:18px">
+      <p class="eyebrow">Deux sortes de tests</p>
+      <h2>Certaines maps informent, d'autres bloquent</h2>
+      <p>Les confondre, c'est la façon la plus rapide de transformer la méthode en paperasse. Une map qui informe accepte ce que dit le code; une vérification qui bloque refuse, et régénérer ne la fait pas passer.</p>
+    </div>
+    <div class="kinds">
+      <div class="kind">
+        <span class="tag inform">Informe</span>
+        <h3>Lire, régénérer, commiter</h3>
+        <ul>
+          <li>Inventaire : chaque module et chaque fonction, avec sa ligne de doc</li>
+          <li>Dépendances : qui importe qui, cycles en premier</li>
+          <li>Règles : chaque nom de test, la spécification vivante</li>
+          <li>Identifiants HTML partagés entre le gabarit et le code</li>
+          <li>Le fichier livré est bien construit depuis le code actuel</li>
+        </ul>
+      </div>
+      <div class="kind">
+        <span class="tag block">Bloque : contrats</span>
+        <h3>Des promesses faites à l'extérieur</h3>
+        <ul>
+          <li>Un champ d'export publié ne peut pas disparaître ni se restreindre</li>
+          <li>Un champ ajouté après une publication doit être optionnel</li>
+          <li>Les clés de stockage du navigateur ne changent jamais</li>
+        </ul>
+      </div>
+      <div class="kind">
+        <span class="tag block">Bloque : cliquets</span>
+        <h3>Des chiffres qui ne peuvent que baisser</h3>
+        <ul>
+          <li>Modules pris dans un cycle d'import : 0</li>
+          <li>Imports du cœur logique vers l'interface : 0</li>
+          <li>Fichiers de 300 lignes et plus : 0</li>
+          <li>Identifiants cherchés par le code mais absents du gabarit : 0</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="read" style="display:grid;gap:18px">
+      <p class="eyebrow">Ce que les maps ont attrapé</p>
+      <h2>Commit par commit, ce que la structure a dit</h2>
+      <p>Chaque ligne vient d'un vrai commit du dépôt. La colonne de droite dit qui l'a vu : une map qui informe, une vérification qui bloque, ou personne.</p>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Commit</th><th>Ajout</th><th>Ce que les maps ont montré</th><th>Vu par</th></tr></thead>
+        <tbody>
+          <tr><td class="commit">232e7a0<span>22 h 01</span></td><td>Première version : requête, réponse, historique</td><td>Le générateur d'inventaire attribuait l'en-tête d'un fichier à sa première constante. Une erreur silencieuse de l'outil lui-même, vue en lisant la map. Douze fonctions privées sans doc : le code était implicite, on a corrigé le code.</td><td><span class="tag inform">Map</span></td></tr>
+          <tr><td class="commit">9bc19d4<span>22 h 02</span></td><td>Correctif de l'historique</td><td>La map des règles promettait « l'historique garde la requête telle qu'envoyée ». Le cœur tenait la promesse; l'interface la brisait pendant une requête lente.</td><td><span class="tag inform">Map</span></td></tr>
+          <tr><td class="commit">495d3db<span>22 h 14</span></td><td>Collections et dossiers</td><td>La notion de « requête » était coupée entre deux fichiers : regroupée avant d'écrire. Une copie de règle sous un autre nom (<code>exportRow</code>) retirée. Premier signal : le fichier principal dépasse 300 lignes.</td><td><span class="tag inform">Map</span></td></tr>
+          <tr><td class="commit">0bec4a7<span>22 h 19</span></td><td>Environnements et variables</td><td>La règle « ligne cochée et nommée » était réécrite à la main ailleurs; deux autres petites règles allaient l'être. Chacune a maintenant un seul endroit. Le format d'export n'a fait qu'ajouter des lignes : la factorisation n'a rien déplacé.</td><td><span class="tag inform">Map</span></td></tr>
+          <tr><td class="commit">3f08c5a<span>22 h 22</span></td><td>Authentification Bearer et Basic</td><td>La map montrait l'endroit où l'on oublierait le jeton : une fonction qui énumère ses champs à la main. Un test parcourt maintenant tous les champs; retirer deux champs le fait échouer en les nommant.</td><td><span class="tag block">Test</span></td></tr>
+          <tr><td class="commit">5cf08aa<span>22 h 26</span></td><td>Anciens exports importables</td><td>Chaque ajout rendait obligatoires de nouveaux champs : un fichier exporté une heure plus tôt était refusé, alors que la map affichait un inoffensif « +10 −0 ». Nouvelle vérification bloquante et un vrai fichier de la première version gardé comme preuve.</td><td><span class="tag missed">Pas vu</span></td></tr>
+          <tr><td class="commit">347cfa6<span>23 h 04</span></td><td>Un état unique, un contrôleur par fonction</td><td>Le fichier principal grossissait à chaque ajout, signalé trois fois chiffres à l'appui. Découpé, et un cliquet empêche le retour.</td><td><span class="tag block">Cliquet</span></td></tr>
+          <tr><td class="commit">2f1faf9<span>23 h 36</span></td><td>Map des identifiants HTML, tests d'interface</td><td>Dès sa première lecture, la nouvelle map annonçait quatre identifiants « utilisés par rien » qui l'étaient : ils passaient comme texte à une fonction. Le code était implicite; il passe maintenant l'élément. Réintroduire le bogue du commit 9bc19d4 fait échouer le test qui porte son numéro.</td><td><span class="tag inform">Map</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="caption">Heures des commits du 26 octobre 2026. La ligne « Pas vu » est volontairement là : la méthode réduit l'angle mort, elle ne le supprime pas, et c'est en la nommant qu'on l'a fermée.</p>
+  </section>
+
+  <section>
+    <div class="read" style="display:grid;gap:18px">
+      <p class="eyebrow">Une dérive mesurée, puis corrigée</p>
+      <h2>Le fichier principal, commit après commit</h2>
+      <p>Sans la map, cette croissance passe inaperçue : chaque ajout est raisonnable en soi. Avec elle, la tendance se lit à chaque commit, et la correction se vérifie.</p>
+    </div>
+    <figure class="figure chart" style="margin:0">
+      <svg viewBox="0 0 700 300" role="img" aria-labelledby="chart-title chart-desc">
+        <title id="chart-title">Lignes du fichier app.js par commit</title>
+        <desc id="chart-desc">237 lignes à la première version, 239, puis 342 avec les collections, 350 avec les environnements, 353 avec l'authentification, et 25 après le découpage en contrôleurs. Le nombre d'imports suit : 7, 7, 13, 16, 17, puis 8.</desc>
+        <!-- scale: 0..400 lines over 200px (y = 240 - lines * 0.5) -->
+        <line class="gridline" x1="60" x2="680" y1="240" y2="240"/>
+        <line class="gridline" x1="60" x2="680" y1="190" y2="190"/>
+        <line class="gridline" x1="60" x2="680" y1="140" y2="140"/>
+        <line class="gridline" x1="60" x2="680" y1="90" y2="90"/>
+        <text class="small" x="52" y="244" text-anchor="end">0</text>
+        <text class="small" x="52" y="194" text-anchor="end">100</text>
+        <text class="small" x="52" y="144" text-anchor="end">200</text>
+        <text class="small" x="52" y="94" text-anchor="end">300</text>
+        <line class="limit" x1="60" x2="680" y1="90" y2="90"/>
+        <text class="small" x="80" y="82" text-anchor="start" style="fill:var(--alarm)">seuil des gros fichiers : 300 lignes</text>
+
+        <rect class="bar" x="80" y="121.5" width="60" height="118.5"/>
+        <rect class="bar" x="180" y="120.5" width="60" height="119.5"/>
+        <rect class="bar over" x="280" y="69" width="60" height="171"/>
+        <rect class="bar over" x="380" y="65" width="60" height="175"/>
+        <rect class="bar over" x="480" y="63.5" width="60" height="176.5"/>
+        <rect class="bar after" x="580" y="227.5" width="60" height="12.5"/>
+
+        <text class="num" x="110" y="114" text-anchor="middle">237</text>
+        <text class="num" x="210" y="113" text-anchor="middle">239</text>
+        <text class="num" x="310" y="61" text-anchor="middle">342</text>
+        <text class="num" x="410" y="57" text-anchor="middle">350</text>
+        <text class="num" x="510" y="56" text-anchor="middle">353</text>
+        <text class="num" x="610" y="220" text-anchor="middle">25</text>
+
+        <text x="110" y="262" text-anchor="middle" font-size="13">v0.1</text>
+        <text x="210" y="262" text-anchor="middle" font-size="13">correctif</text>
+        <text x="310" y="262" text-anchor="middle" font-size="13">collections</text>
+        <text x="410" y="262" text-anchor="middle" font-size="13">environn.</text>
+        <text x="510" y="262" text-anchor="middle" font-size="13">auth</text>
+        <text x="610" y="262" text-anchor="middle" font-size="13">découpage</text>
+        <text class="small" x="110" y="282" text-anchor="middle">7 imports</text>
+        <text class="small" x="210" y="282" text-anchor="middle">7 imports</text>
+        <text class="small" x="310" y="282" text-anchor="middle">13 imports</text>
+        <text class="small" x="410" y="282" text-anchor="middle">16 imports</text>
+        <text class="small" x="510" y="282" text-anchor="middle">17 imports</text>
+        <text class="small" x="610" y="282" text-anchor="middle">8 imports</text>
+      </svg>
+      <figcaption>Lignes de <code>src/ui/app.js</code> à chaque commit, mesurées dans l'historique Git. En ocre : au-dessus du seuil que la map signale. Après le découpage, le plus gros module de l'interface fait 106 lignes.</figcaption>
+    </figure>
+  </section>
+
+  <section class="read">
+    <p class="eyebrow">Pour l'architecture d'entreprise</p>
+    <h2>Ce que ce mode de travail garantit</h2>
+    <div class="guarantees">
+      <div><b>Traçabilité</b><span>Chaque changement est un commit qui dit ce qui a été ajouté et ce que la structure a montré. L'historique se relit comme un journal de décisions.</span></div>
+      <div><b>Spécification vivante</b><span>La map des règles liste les 83 comportements promis par les tests, dont 8 vérifiés dans un vrai navigateur. Un comportement qui change sans test qui change est un test manquant, et on le sait.</span></div>
+      <div><b>Contrats tenus</b><span>Le format des fichiers d'export et les clés de stockage sont des promesses faites aux utilisateurs. Les casser fait échouer la suite, même si quelqu'un régénère tout.</span></div>
+      <div><b>Dérive bornée</b><span>Cycles, couches et taille des fichiers sont des cliquets : ils peuvent s'améliorer, jamais se dégrader sans une décision écrite.</span></div>
+      <div><b>Revue possible</b><span>On révise le diff des maps avant celui du code. Une revue d'architecture tient en quelques lignes par changement.</span></div>
+      <div><b>Aucune dépendance</b><span>Le produit est un seul fichier HTML, sous licence MIT. Rien à installer, rien à mettre à jour, aucune bibliothèque tierce à surveiller.</span></div>
+    </div>
+  </section>
+
+  <section class="read">
+    <p class="eyebrow">Les limites, dites franchement</p>
+    <h2>Ce que la méthode ne règle pas</h2>
+    <ul class="limits">
+      <li><b>Le même concept sous deux noms différents.</b> La map les met côte à côte; c'est le jugement humain qui décide qu'ils n'en font qu'un.</li>
+      <li><b>Le même modèle écrit le code et ses tests.</b> Les tests risquent de confirmer ce que fait le code plutôt que ce qu'il devrait faire. La relecture humaine des règles reste le contrepoids.</li>
+      <li><b>Ce qu'aucune map ne regarde.</b> Les champs ajoutés comme obligatoires en sont l'exemple : vus seulement à la relecture, puis transformés en vérification bloquante.</li>
+      <li><b>Les limites d'une page web.</b> Une API qui refuse les requêtes venant d'une page (CORS) ne répond pas; certains en-têtes ne peuvent pas être fixés. Les jetons et mots de passe sont gardés en clair dans le navigateur et dans les exports.</li>
+      <li><b>Les tests d'interface</b> tournent dans Chrome ou Edge; Firefox, le thème sombre et les petits écrans restent à vérifier.</li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="read" style="display:grid;gap:18px">
+      <p class="eyebrow">Déroulé de la démo · 10 minutes</p>
+      <h2>Ce qu'on montre en direct</h2>
+    </div>
+    <ol class="steps read">
+      <li><div><b>Ouvrir l'application.</b> <span class="time">1 min</span><p class="say">Double-cliquer sur <code>dist/postman-alternative.html</code>. Envoyer un GET vers <code>https://httpbin.org/get</code>.</p></div></li>
+      <li><div><b>Un environnement, une collection.</b> <span class="time">2 min</span><p class="say">Créer « Dev » avec <code>baseUrl = https://httpbin.org</code>, taper <code>{{baseUrl}}/get</code> : l'aperçu montre l'adresse réelle. Ctrl+S pour l'enregistrer dans une collection.</p></div></li>
+      <li><div><b>Montrer une map.</b> <span class="time">2 min</span><p class="say">Ouvrir <code>docs/maps/dependencies.md</code> sur GitHub : aucun cycle, le cœur n'importe jamais l'interface. Puis <code>rules.md</code> : la spécification se lit en français simple.</p></div>
+        <div class="cmd"><code>https://github.com/LogRaam/A-Postman-Alternative/tree/main/docs/maps</code><button type="button" data-copy="https://github.com/LogRaam/A-Postman-Alternative/tree/main/docs/maps">Copier</button></div></li>
+      <li><div><b>Lire un commit.</b> <span class="time">2 min</span><p class="say">Ouvrir le commit <code>347cfa6</code> : son message dit ce que les maps ont montré avant d'écrire une ligne de code.</p></div></li>
+      <li><div><b>Casser un contrat, en direct.</b> <span class="time">3 min</span><p class="say">Dans une copie du dépôt, figer le format comme s'il était publié, retirer un champ d'export, régénérer : la commande refuse et nomme le champ. Régénérer ne contourne pas un contrat.</p></div>
+        <div class="cmd"><code>npm run update-maps -- --record-released</code><button type="button" data-copy="npm run update-maps -- --record-released">Copier</button></div>
+        <div class="cmd"><code>npm run update-maps</code><button type="button" data-copy="npm run update-maps">Copier</button></div></li>
+    </ol>
+  </section>
+
+  <footer>
+    <p>Dépôt de l'application : <a href="https://github.com/LogRaam/A-Postman-Alternative">github.com/LogRaam/A-Postman-Alternative</a> (MIT)</p>
+    <p>La méthode, réutilisable sur d'autres projets : <a href="https://github.com/LogRaam/My-Claude-Skills/tree/main/generated-maps">le skill generated-maps</a></p>
+    <p>Chiffres tirés du dépôt au commit <code>2f1faf9</code> : 31 modules source, 83 tests, 5 maps, 11 commits.</p>
+  </footer>
+</div>
+
+<script>
+document.querySelectorAll('[data-copy]').forEach(button => {
+  button.addEventListener('click', async () => {
+    const text = button.getAttribute('data-copy');
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = 'Copié';
+    } catch {
+      const code = button.previousElementSibling;
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      button.textContent = 'Sélectionné';
+    }
+    setTimeout(() => { button.textContent = 'Copier'; }, 1600);
+  });
+});
+</script>
+</body>
+</html>
