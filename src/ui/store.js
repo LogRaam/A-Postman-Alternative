@@ -13,6 +13,33 @@ const COLLECTIONS_KEY = 'postman-alternative.collections.v1';
 /** Storage key of the id of the saved request open in the editor. */
 const OPEN_REQUEST_KEY = 'postman-alternative.open-request.v1';
 
+/** Storage key of the environments. */
+const ENVIRONMENTS_KEY = 'postman-alternative.environments.v1';
+/** Storage key of the id of the environment requests are resolved against. */
+const ACTIVE_ENVIRONMENT_KEY = 'postman-alternative.active-environment.v1';
+
+/** The saved environments, or an empty list. */
+export function loadEnvironments() {
+  const environments = readJson(ENVIRONMENTS_KEY);
+  return Array.isArray(environments) ? environments : [];
+}
+
+/** Saves the environments; silently does nothing when storage is unavailable. */
+export function saveEnvironments(environments) {
+  writeJson(ENVIRONMENTS_KEY, environments);
+}
+
+/** The id of the active environment, or null for none. */
+export function loadActiveEnvironmentId() {
+  const id = readJson(ACTIVE_ENVIRONMENT_KEY);
+  return typeof id === 'string' ? id : null;
+}
+
+/** Remembers the active environment (null for none). */
+export function saveActiveEnvironmentId(id) {
+  writeJson(ACTIVE_ENVIRONMENT_KEY, id);
+}
+
 /** The saved collections, or an empty list. */
 export function loadCollections() {
   const collections = readJson(COLLECTIONS_KEY);

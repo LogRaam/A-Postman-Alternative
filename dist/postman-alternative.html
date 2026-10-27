@@ -56,6 +56,13 @@ aside .tagline { color: var(--muted); font-size: 12px; margin: 0; }
 #request-title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dirty { color: var(--redirect); font-size: 12px; white-space: nowrap; }
 .spacer { flex: 1; }
+#environment { padding: 3px 6px; font-size: 13px; max-width: 200px; }
+#resolved-url { margin: -4px 0 0; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+#resolved-url.missing { color: var(--warn-text); }
+dialog:has(form.wide) { width: min(640px, calc(100vw - 32px)); }
+.env-bar { display: flex; gap: 6px; margin-bottom: 10px; }
+.env-bar select { flex: 1; }
+.env-rows { margin-bottom: 8px; }
 dialog { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); padding: 18px; width: min(420px, calc(100vw - 32px)); }
 dialog::backdrop { background: rgba(0, 0, 0, .35); }
 dialog h2 { font-size: 16px; margin: 0 0 12px; }
@@ -143,6 +150,8 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
       <span id="request-title">Unsaved request</span>
       <span id="request-dirty" class="dirty" title="Changed since it was saved" hidden>&#9679; unsaved changes</span>
       <span class="spacer"></span>
+      <select id="environment" aria-label="Environment" title="Variables {{name}} are resolved against this environment"></select>
+      <button type="button" class="small" id="manage-environments" title="Create and edit environments">Environments</button>
       <button type="button" class="small" id="new-request" title="Start an empty request">New</button>
       <button type="button" class="small" id="save" title="Save (Ctrl+S)">Save</button>
       <button type="button" class="small" id="save-as" title="Save as a new request (Ctrl+Shift+S)" hidden>Save as&hellip;</button>
@@ -152,6 +161,7 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
       <input type="text" id="url" placeholder="https://httpbin.org/get" aria-label="Address" spellcheck="false">
       <button type="submit" id="send" title="Send (Ctrl+Enter)">Send</button>
     </form>
+    <p id="resolved-url" class="mono" hidden></p>
     <section class="panel">
       <div role="tablist" id="request-tabs">
         <button type="button" role="tab" id="tab-params" aria-controls="params" aria-selected="true">Params</button>
@@ -200,8 +210,34 @@ input.forbidden { text-decoration: line-through; color: var(--client-error); }
 (() => {
 'use strict';
 
+// ---- src/core/rows.js ----
+/**
+ * Key/value rows: query parameters, headers and environment variables all share this shape and these rules,
+ * so they are written once here.
+ */
+
+/** Every field of a row, as [path, type], for the export file's validator and map. */
+const ROW_FIELDS = [
+  ['enabled', 'boolean'],
+  ['key', 'string'],
+  ['value', 'string'],
+];
+
+/** The rows that count: ticked, and with a non-blank name. Names are trimmed, values kept as typed. */
+function enabledRows(rows) {
+  return (rows || [])
+    .filter(row => row && row.enabled !== false && (row.key || '').trim() !== '')
+    .map(row => ({ key: row.key.trim(), value: row.value ?? '' }));
+}
+
+/** A row with all three fields present: ticked unless explicitly unticked, empty strings rather than undefined. */
+function copyRow(row) {
+  return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
+}
+
 // ---- src/core/url.js ----
 /** Building the URL a request is sent to, from the typed address and the query-parameter rows. */
+
 
 /**
  * Appends every enabled, named parameter row to the address, keeping any query the address already has.
@@ -222,13 +258,6 @@ function buildUrl(address, paramRows) {
   }
   for (const row of enabledRows(paramRows)) url.searchParams.append(row.key, row.value);
   return url.toString();
-}
-
-/** The rows a request should use: ticked, and with a non-blank name. Names are trimmed, values kept as typed. */
-function enabledRows(rows) {
-  return (rows || [])
-    .filter(row => row && row.enabled !== false && (row.key || '').trim() !== '')
-    .map(row => ({ key: row.key.trim(), value: row.value ?? '' }));
 }
 
 // ---- src/core/request.js ----
@@ -303,24 +332,29 @@ function hasHeader(headers, lowerName) {
   return headers.some(([name]) => name.toLowerCase() === lowerName);
 }
 
+// ---- src/core/fields.js ----
+/** Field lists ([path, type] pairs) that describe stored data, for the export file's validator and map. */
+
+/** A field list placed under a prefix: fieldsAt('params[]', [['key', 'string']]) gives [['params[].key', 'string']]. */
+function fieldsAt(prefix, fields) {
+  return fields.map(([path, type]) => [prefix + '.' + path, type]);
+}
+
 // ---- src/core/draft.js ----
 /**
  * The draft: one request as the editor holds it, and as history entries and saved requests keep it.
  * Every place that stores a request stores this shape, so its fields are listed once, here.
  */
 
+
 /** Every field of a draft, as [path, type], for the export file's validator and map. "[]" marks array items. */
 const DRAFT_FIELDS = [
   ['method', 'string'],
   ['url', 'string'],
   ['params', 'array'],
-  ['params[].enabled', 'boolean'],
-  ['params[].key', 'string'],
-  ['params[].value', 'string'],
+  ...fieldsAt('params[]', ROW_FIELDS),
   ['headers', 'array'],
-  ['headers[].enabled', 'boolean'],
-  ['headers[].key', 'string'],
-  ['headers[].value', 'string'],
+  ...fieldsAt('headers[]', ROW_FIELDS),
   ['bodyMode', 'string'],
   ['body', 'string'],
 ];
@@ -348,66 +382,6 @@ function sameDraft(a, b) {
   return JSON.stringify(copyDraft(a)) === JSON.stringify(copyDraft(b));
 }
 
-/** A row with all three fields present: ticked unless explicitly unticked, empty strings rather than undefined. */
-function copyRow(row) {
-  return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
-}
-
-// ---- src/core/response.js ----
-/** Describing a response for the reader: status wording, size, duration, and a readable body. */
-
-/** "200 OK"-style label; the browser gives an empty statusText over HTTP/2, so common reasons are filled in. */
-function statusLabel(status, statusText) {
-  const reason = statusText || REASONS[status] || '';
-  return reason ? status + ' ' + reason : String(status);
-}
-
-/** Which colour family a status belongs to: success, redirect, client error, server error. */
-function statusClass(status) {
-  if (status >= 200 && status < 300) return 'ok';
-  if (status >= 300 && status < 400) return 'redirect';
-  if (status >= 400 && status < 500) return 'client-error';
-  return 'server-error';
-}
-
-/** Bytes as the reader says them: 512 B, 1.4 KB, 3.2 MB. */
-function formatBytes(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-/** Milliseconds as the reader says them: 85 ms, 1.24 s. */
-function formatDuration(ms) {
-  if (ms < 1000) return Math.round(ms) + ' ms';
-  return (ms / 1000).toFixed(2) + ' s';
-}
-
-/**
- * The body as it should be shown: JSON re-indented when it parses (whatever the content type claims),
- * otherwise the text as received. Reports which of the two it did.
- */
-function prettyBody(text) {
-  const trimmed = (text || '').trim();
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    try {
-      return { text: JSON.stringify(JSON.parse(trimmed), null, 2), kind: 'json' };
-    } catch {
-      // Not JSON after all: shown as received.
-    }
-  }
-  return { text: text || '', kind: 'text' };
-}
-
-/** Reason phrases for the statuses most often seen, used when the browser gives none. */
-const REASONS = {
-  200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content', 301: 'Moved Permanently', 302: 'Found',
-  304: 'Not Modified', 307: 'Temporary Redirect', 308: 'Permanent Redirect', 400: 'Bad Request',
-  401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed', 409: 'Conflict',
-  415: 'Unsupported Media Type', 422: 'Unprocessable Content', 429: 'Too Many Requests',
-  500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout',
-};
-
 // ---- src/core/errors.js ----
 /** Turning what fetch() throws into a sentence the user can act on. */
 
@@ -428,6 +402,94 @@ function explainFetchError(error, url, pageProtocol) {
       + 'The developer console (F12) usually names the reason.';
   }
   return (error && error.message) || 'The request failed for an unknown reason.';
+}
+
+// ---- src/core/names.js ----
+/** Names the user gives to things: collections, folders, saved requests, environments. */
+
+/** A name trimmed, or the fallback when nothing but spaces was typed. */
+function cleanName(name, fallback) {
+  const trimmed = (name || '').trim();
+  return trimmed || fallback;
+}
+
+// ---- src/core/environments.js ----
+/**
+ * Environments: named sets of variables ({{baseUrl}}, {{token}}) that the request is resolved against when
+ * it is sent, so one saved request works against development, test and production alike. The request keeps
+ * the {{names}}; only what is sent carries the values.
+ */
+
+
+/** {{ name }}: a variable reference. Spaces inside the braces are allowed; the name itself has none. */
+const VARIABLE_REFERENCE = /\{\{\s*([^{}\s]+)\s*\}\}/g;
+
+/** The list with a new, empty environment added at the end. */
+function addEnvironment(environments, name, id) {
+  return [...environments, { id, name: cleanName(name, 'New environment'), variables: [] }];
+}
+
+/** The list with one environment renamed. A blank name keeps the old one. */
+function renameEnvironment(environments, id, name) {
+  return environments.map(e => (e.id === id ? { ...e, name: cleanName(name, e.name) } : e));
+}
+
+/** The list without one environment. */
+function removeEnvironment(environments, id) {
+  return environments.filter(e => e.id !== id);
+}
+
+/** The list with one environment's variable rows replaced. */
+function setVariables(environments, id, rows) {
+  return environments.map(e => (e.id === id ? { ...e, variables: rows.map(copyRow) } : e));
+}
+
+/** The environments after importing some from a file: an id already here is kept as it is, new ones are added. */
+function mergeEnvironments(environments, imported) {
+  return [...environments, ...(imported || []).filter(e => !environments.some(here => here.id === e.id))];
+}
+
+/** Every {{name}} a text refers to, in order of first appearance. */
+function referencedNames(text) {
+  return [...new Set([...(text || '').matchAll(VARIABLE_REFERENCE)].map(m => m[1]))];
+}
+
+/**
+ * The text with each {{name}} replaced by its value. A name the variables do not define is left as typed and
+ * reported in missing (a Set the caller collects across fields).
+ */
+function substitute(text, values, missing) {
+  return (text || '').replace(VARIABLE_REFERENCE, (whole, name) => {
+    if (values.has(name)) return values.get(name);
+    missing.add(name);
+    return whole;
+  });
+}
+
+/**
+ * The draft as it will be sent: every {{name}} in the address, parameters, headers and body replaced by the
+ * environment's value. Returns the resolved copy and the names no variable defines. With no environment,
+ * every reference is missing.
+ */
+function resolveDraft(draft, environment) {
+  const values = new Map(enabledRows(environment ? environment.variables : []).map(row => [row.key, row.value]));
+  const missing = new Set();
+  const resolved = copyDraft(draft);
+  const resolveRows = rows => rows.map(row => ({ ...row, key: substitute(row.key, values, missing), value: substitute(row.value, values, missing) }));
+  resolved.url = substitute(resolved.url, values, missing);
+  resolved.params = resolveRows(resolved.params);
+  resolved.headers = resolveRows(resolved.headers);
+  if (resolved.bodyMode !== 'none') resolved.body = substitute(resolved.body, values, missing);
+  return { draft: resolved, missing: [...missing] };
+}
+
+/** The sentence to show for names left unresolved, or '' when there are none. */
+function missingVariablesWarning(missing, environment) {
+  if (missing.length === 0) return '';
+  const names = missing.map(n => '{{' + n + '}}').join(', ');
+  return environment
+    ? names + (missing.length === 1 ? ' is' : ' are') + ' not defined in "' + environment.name + '"; sent as typed.'
+    : names + ' used, but no environment is selected; sent as typed.';
 }
 
 // ---- src/core/ids.js ----
@@ -569,16 +631,10 @@ function requestsIn(collection, folderId = null) {
   return collection.requests.filter(r => (r.folderId || null) === folderId);
 }
 
-/** A name trimmed, or the fallback when nothing but spaces was typed. */
-function cleanName(name, fallback) {
-  const trimmed = (name || '').trim();
-  return trimmed || fallback;
-}
-
 // ---- src/core/export-format.js ----
 /**
  * The export file: the one format this app promises to read back, so a file exported today still imports
- * after an upgrade. It carries the whole workspace: history and collections. EXPORT_FIELDS is both the
+ * after an upgrade. It carries the whole workspace: history, collections and environments. EXPORT_FIELDS is both the
  * validator and the source of the export-format map; a field removed from it is refused once it has shipped.
  */
 
@@ -602,7 +658,7 @@ const EXPORT_FIELDS = [
   ['history[].id', 'string'],
   ['history[].sentAt', 'number'],
   ['history[].draft', 'object'],
-  ...draftFieldsAt('history[].draft'),
+  ...fieldsAt('history[].draft', DRAFT_FIELDS),
   ['history[].status', 'number|null'],
   ['history[].error', 'string|null'],
   ['collections', 'array'],
@@ -616,11 +672,16 @@ const EXPORT_FIELDS = [
   ['collections[].requests[].name', 'string'],
   ['collections[].requests[].folderId', 'string|null'],
   ['collections[].requests[].draft', 'object'],
-  ...draftFieldsAt('collections[].requests[].draft'),
+  ...fieldsAt('collections[].requests[].draft', DRAFT_FIELDS),
+  ['environments', 'array'],
+  ['environments[].id', 'string'],
+  ['environments[].name', 'string'],
+  ['environments[].variables', 'array'],
+  ...fieldsAt('environments[].variables[]', ROW_FIELDS),
 ];
 
 /** The text of an export file for this workspace. */
-function serializeWorkspace({ history, collections }, exportedAt) {
+function serializeWorkspace({ history, collections, environments }, exportedAt) {
   const file = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
@@ -632,12 +693,13 @@ function serializeWorkspace({ history, collections }, exportedAt) {
       folders: c.folders.map(f => ({ id: f.id, name: f.name })),
       requests: c.requests.map(r => ({ id: r.id, name: r.name, folderId: r.folderId ?? null, draft: copyDraft(r.draft) })),
     })),
+    environments: environments.map(e => ({ id: e.id, name: e.name, variables: e.variables.map(copyRow) })),
   };
   return JSON.stringify(file, null, 2) + '\n';
 }
 
 /**
- * The workspace in an export file: { history, collections }. Throws a plain-language error naming the first
+ * The workspace in an export file: { history, collections, environments }. Throws a plain-language error naming the first
  * field that is missing or of the wrong type, or a version newer than this code knows.
  */
 function parseExport(text) {
@@ -652,12 +714,7 @@ function parseExport(text) {
     throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
   }
   for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
-  return { history: file.history, collections: file.collections };
-}
-
-/** DRAFT_FIELDS with their paths placed under a prefix, such as "history[].draft". */
-function draftFieldsAt(prefix) {
-  return DRAFT_FIELDS.map(([path, type]) => [prefix + '.' + path, type]);
+  return { history: file.history, collections: file.collections, environments: file.environments };
 }
 
 /** Walks one field path into the file and throws when the value at its end is not of the expected type. */
@@ -700,6 +757,33 @@ const HISTORY_KEY = 'postman-alternative.history.v1';
 const COLLECTIONS_KEY = 'postman-alternative.collections.v1';
 /** Storage key of the id of the saved request open in the editor. */
 const OPEN_REQUEST_KEY = 'postman-alternative.open-request.v1';
+
+/** Storage key of the environments. */
+const ENVIRONMENTS_KEY = 'postman-alternative.environments.v1';
+/** Storage key of the id of the environment requests are resolved against. */
+const ACTIVE_ENVIRONMENT_KEY = 'postman-alternative.active-environment.v1';
+
+/** The saved environments, or an empty list. */
+function loadEnvironments() {
+  const environments = readJson(ENVIRONMENTS_KEY);
+  return Array.isArray(environments) ? environments : [];
+}
+
+/** Saves the environments; silently does nothing when storage is unavailable. */
+function saveEnvironments(environments) {
+  writeJson(ENVIRONMENTS_KEY, environments);
+}
+
+/** The id of the active environment, or null for none. */
+function loadActiveEnvironmentId() {
+  const id = readJson(ACTIVE_ENVIRONMENT_KEY);
+  return typeof id === 'string' ? id : null;
+}
+
+/** Remembers the active environment (null for none). */
+function saveActiveEnvironmentId(id) {
+  writeJson(ACTIVE_ENVIRONMENT_KEY, id);
+}
 
 /** The saved collections, or an empty list. */
 function loadCollections() {
@@ -834,6 +918,61 @@ function renderRows(container, rows, onChange, { keyPlaceholder, checkHeaders = 
   container.append(add);
 }
 
+// ---- src/core/response.js ----
+/** Describing a response for the reader: status wording, size, duration, and a readable body. */
+
+/** "200 OK"-style label; the browser gives an empty statusText over HTTP/2, so common reasons are filled in. */
+function statusLabel(status, statusText) {
+  const reason = statusText || REASONS[status] || '';
+  return reason ? status + ' ' + reason : String(status);
+}
+
+/** Which colour family a status belongs to: success, redirect, client error, server error. */
+function statusClass(status) {
+  if (status >= 200 && status < 300) return 'ok';
+  if (status >= 300 && status < 400) return 'redirect';
+  if (status >= 400 && status < 500) return 'client-error';
+  return 'server-error';
+}
+
+/** Bytes as the reader says them: 512 B, 1.4 KB, 3.2 MB. */
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/** Milliseconds as the reader says them: 85 ms, 1.24 s. */
+function formatDuration(ms) {
+  if (ms < 1000) return Math.round(ms) + ' ms';
+  return (ms / 1000).toFixed(2) + ' s';
+}
+
+/**
+ * The body as it should be shown: JSON re-indented when it parses (whatever the content type claims),
+ * otherwise the text as received. Reports which of the two it did.
+ */
+function prettyBody(text) {
+  const trimmed = (text || '').trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return { text: JSON.stringify(JSON.parse(trimmed), null, 2), kind: 'json' };
+    } catch {
+      // Not JSON after all: shown as received.
+    }
+  }
+  return { text: text || '', kind: 'text' };
+}
+
+/** Reason phrases for the statuses most often seen, used when the browser gives none. */
+const REASONS = {
+  200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content', 301: 'Moved Permanently', 302: 'Found',
+  304: 'Not Modified', 307: 'Temporary Redirect', 308: 'Permanent Redirect', 400: 'Bad Request',
+  401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed', 409: 'Conflict',
+  415: 'Unsupported Media Type', 422: 'Unprocessable Content', 429: 'Too Many Requests',
+  500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout',
+};
+
 // ---- src/ui/history-panel.js ----
 /** The History tab of the sidebar: every request sent, newest first, each one reloadable. */
 
@@ -956,7 +1095,7 @@ function tool(symbol, title, onClick) {
  * Asks for one line of text. Resolves with the trimmed text, or null when cancelled or left blank.
  */
 function askText({ title, label, initial = '', confirm = 'OK' }) {
-  return openDialog(title, confirm, form => {
+  return openFormDialog(title, confirm, form => {
     const input = field(form, label, 'text');
     input.value = initial;
     return { focus: input, read: () => input.value.trim() || null };
@@ -968,7 +1107,7 @@ function askText({ title, label, initial = '', confirm = 'OK' }) {
  * here) and optionally a folder of it. Resolves with { name, collectionId, newCollectionName, folderId } or null.
  */
 function askSaveTarget(collections, suggestedName) {
-  return openDialog('Save request', 'Save', form => {
+  return openFormDialog('Save request', 'Save', form => {
     const name = field(form, 'Name', 'text');
     name.value = suggestedName;
 
@@ -999,8 +1138,11 @@ function askSaveTarget(collections, suggestedName) {
   });
 }
 
-/** Opens the dialog with a form built by build(form); resolves with build's read() on confirm, null on cancel. */
-function openDialog(title, confirmLabel, build) {
+/**
+ * Opens the page's dialog on a form built by build(form), which returns { focus, read }. Resolves with read()
+ * on confirm, null on cancel or Escape.
+ */
+function openFormDialog(title, confirmLabel, build) {
   const dialog = document.getElementById('dialog');
   const form = document.createElement('form');
   form.method = 'dialog';
@@ -1054,6 +1196,139 @@ function field(form, labelText, kind) {
   return control;
 }
 
+// ---- src/ui/environments-dialog.js ----
+/** The environment manager: create, rename and delete environments, and edit their variables. */
+
+
+/**
+ * Opens the manager on one environment (or the first). Every edit is applied at once through
+ * onChange(environments). Resolves with the environment selected when Done is pressed, or null.
+ */
+function manageEnvironments(environments, selectedId, onChange) {
+  let list = environments;
+  let selected = list.some(e => e.id === selectedId) ? selectedId : (list[0] ? list[0].id : null);
+
+  return openFormDialog('Environments', 'Done', form => {
+    form.classList.add('wide');
+    const bar = document.createElement('div');
+    bar.className = 'env-bar';
+    const picker = document.createElement('select');
+    picker.setAttribute('aria-label', 'Environment');
+    const add = smallButton('New', 'Add an environment');
+    const remove = smallButton('Delete', 'Delete this environment');
+    bar.append(picker, add, remove);
+
+    const nameLabel = document.createElement('label');
+    const nameCaption = document.createElement('span');
+    nameCaption.textContent = 'Name';
+    const name = document.createElement('input');
+    name.type = 'text';
+    nameLabel.append(nameCaption, name);
+
+    const rows = document.createElement('div');
+    rows.className = 'env-rows';
+    const hint = document.createElement('p');
+    hint.className = 'note';
+    hint.textContent = 'Use a variable as {{name}} in the address, parameters, headers or body. Values are kept in plain text in this browser and in exports.';
+    form.append(bar, nameLabel, rows, hint);
+
+    const update = next => { list = next; onChange(list); };
+    const render = () => {
+      picker.replaceChildren(...list.map(e => new Option(e.name, e.id)));
+      const environment = list.find(e => e.id === selected);
+      picker.hidden = remove.hidden = nameLabel.hidden = !environment;
+      if (!environment) {
+        rows.replaceChildren(Object.assign(document.createElement('p'), { className: 'empty', textContent: 'No environment yet. Press New to add one.' }));
+        return;
+      }
+      picker.value = selected;
+      name.value = environment.name;
+      renderRows(rows, environment.variables, next => update(setVariables(list, selected, next)), { keyPlaceholder: 'Variable' });
+    };
+
+    picker.addEventListener('change', () => { selected = picker.value; render(); });
+    name.addEventListener('change', () => { update(renameEnvironment(list, selected, name.value)); render(); });
+    add.addEventListener('click', () => {
+      selected = makeId();
+      update(addEnvironment(list, 'Environment ' + (list.length + 1), selected));
+      render();
+      name.focus();
+      name.select();
+    });
+    remove.addEventListener('click', () => {
+      const index = list.findIndex(e => e.id === selected);
+      update(removeEnvironment(list, selected));
+      selected = list[Math.min(index, list.length - 1)] ? list[Math.min(index, list.length - 1)].id : null;
+      render();
+    });
+    render();
+    return { focus: list.length ? picker : add, read: () => selected };
+  });
+}
+
+/** A small button that does not submit the dialog's form. */
+function smallButton(text, title) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'small';
+  button.textContent = text;
+  button.title = title;
+  return button;
+}
+
+// ---- src/ui/response-view.js ----
+/** The response panel: status, time, size, body and headers of the last response, or why there is none. */
+
+
+/** Shows a response that came back: its bytes are the body as received, elapsed the time in milliseconds. */
+function showResponse(response, bytes, elapsed) {
+  const $ = id => document.getElementById(id);
+  $('response-empty').hidden = true;
+  $('response-error').hidden = true;
+  $('response-content').hidden = false;
+  const status = $('status');
+  status.textContent = statusLabel(response.status, response.statusText);
+  status.className = 'badge ' + statusClass(response.status);
+  $('time').textContent = formatDuration(elapsed);
+  $('size').textContent = formatBytes(bytes.byteLength);
+  const body = prettyBody(new TextDecoder().decode(bytes));
+  $('response-body').textContent = body.text || '(empty body)';
+  $('response-body').dataset.kind = body.kind;
+  const rows = [];
+  response.headers.forEach((value, name) => rows.push([name, value]));
+  $('response-headers').replaceChildren(...rows.map(([name, value]) => headerRow(name, value)));
+  $('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
+  $('headers-note').hidden = false;
+}
+
+/** Shows why there is no response: a request that could not be sent, or a send that failed. */
+function showError(message) {
+  const $ = id => document.getElementById(id);
+  $('response-empty').hidden = true;
+  $('response-content').hidden = true;
+  $('response-error').hidden = false;
+  $('response-error').textContent = message;
+}
+
+/** Turns Send into Cancel while a request is in flight, and dims the last response. */
+function setSending(sending) {
+  const send = document.getElementById('send');
+  send.textContent = sending ? 'Cancel' : 'Send';
+  send.classList.toggle('cancel', sending);
+  document.getElementById('response').classList.toggle('loading', sending);
+}
+
+/** A table row: the header name in a <th>, its value in a <td>. */
+function headerRow(name, value) {
+  const row = document.createElement('tr');
+  const key = document.createElement('th');
+  key.textContent = name;
+  const cell = document.createElement('td');
+  cell.textContent = value;
+  row.append(key, cell);
+  return row;
+}
+
 // ---- src/ui/app.js ----
 /** The page: wires the editor, the send button, the response panel and the sidebar together. */
 
@@ -1066,12 +1341,14 @@ function startApp() {
   let collections = loadCollections();
   let openRequestId = loadOpenRequestId();
   if (openRequestId && !findRequest(collections, openRequestId)) openRequestId = null;
+  let environments = loadEnvironments();
+  let activeEnvironmentId = loadActiveEnvironmentId();
   let inFlight = null;
 
   const method = $('method');
   for (const name of METHODS) method.append(new Option(name, name));
 
-  const changed = () => { saveDraft(draft); refreshBodyHint(); refreshTitle(); };
+  const changed = () => { saveDraft(draft); refreshBodyHint(); refreshTitle(); refreshPreview(); };
 
   function showDraft() {
     method.value = draft.method;
@@ -1082,6 +1359,7 @@ function startApp() {
     renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
     refreshBodyHint();
     refreshTitle();
+    refreshPreview();
   }
 
   function refreshBodyHint() {
@@ -1100,6 +1378,43 @@ function startApp() {
     $('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
     $('save-as').hidden = !found;
   }
+
+  /** Under the address: where the request will really go, when the address uses {{variables}}. */
+  function refreshPreview() {
+    const preview = $('resolved-url');
+    if (referencedNames(draft.url).length === 0) { preview.hidden = true; return; }
+    const { draft: resolved, missing } = resolveDraft(draft, activeEnvironment());
+    preview.hidden = false;
+    preview.textContent = 'Sends to ' + resolved.url + (missing.length ? '   (' + missingVariablesWarning(missing, activeEnvironment()) + ')' : '');
+    preview.classList.toggle('missing', missing.length > 0);
+  }
+
+  // ---- Environments ----
+
+  function activeEnvironment() {
+    return environments.find(e => e.id === activeEnvironmentId) || null;
+  }
+
+  function setEnvironments(next, nextActiveId = activeEnvironmentId) {
+    environments = next;
+    activeEnvironmentId = environments.some(e => e.id === nextActiveId) ? nextActiveId : null;
+    saveEnvironments(environments);
+    saveActiveEnvironmentId(activeEnvironmentId);
+    showEnvironmentPicker();
+    refreshPreview();
+  }
+
+  function showEnvironmentPicker() {
+    const picker = $('environment');
+    picker.replaceChildren(new Option('No environment', ''), ...environments.map(e => new Option(e.name, e.id)));
+    picker.value = activeEnvironmentId || '';
+  }
+
+  $('environment').addEventListener('change', () => setEnvironments(environments, $('environment').value || null));
+  $('manage-environments').addEventListener('click', async () => {
+    const chosen = await manageEnvironments(environments, activeEnvironmentId, next => setEnvironments(next));
+    if (chosen) setEnvironments(environments, chosen);
+  });
 
   method.addEventListener('change', () => { draft.method = method.value; changed(); });
   $('url').addEventListener('input', () => { draft.url = $('url').value; changed(); });
@@ -1122,14 +1437,17 @@ function startApp() {
   });
 
   async function send() {
+    // The editor keeps the {{names}}; only what is sent carries the environment's values.
+    const resolved = resolveDraft(draft, activeEnvironment());
     let request;
     try {
-      request = toFetchRequest(draft);
+      request = toFetchRequest(resolved.draft);
     } catch (error) {
       showError(error.message);
       return;
     }
-    $('warnings').replaceChildren(...request.warnings.map(text => paragraph(text)));
+    const warnings = [missingVariablesWarning(resolved.missing, activeEnvironment()), ...request.warnings].filter(Boolean);
+    $('warnings').replaceChildren(...warnings.map(text => paragraph(text)));
     const sentAt = Date.now();
     const sent = copyDraft(draft);
     inFlight = new AbortController();
@@ -1149,38 +1467,6 @@ function startApp() {
       inFlight = null;
       setSending(false);
     }
-  }
-
-  function setSending(sending) {
-    $('send').textContent = sending ? 'Cancel' : 'Send';
-    $('send').classList.toggle('cancel', sending);
-    $('response').classList.toggle('loading', sending);
-  }
-
-  function showResponse(response, bytes, elapsed) {
-    $('response-empty').hidden = true;
-    $('response-error').hidden = true;
-    $('response-content').hidden = false;
-    const status = $('status');
-    status.textContent = statusLabel(response.status, response.statusText);
-    status.className = 'badge ' + statusClass(response.status);
-    $('time').textContent = formatDuration(elapsed);
-    $('size').textContent = formatBytes(bytes.byteLength);
-    const body = prettyBody(new TextDecoder().decode(bytes));
-    $('response-body').textContent = body.text || '(empty body)';
-    $('response-body').dataset.kind = body.kind;
-    const rows = [];
-    response.headers.forEach((value, name) => rows.push([name, value]));
-    $('response-headers').replaceChildren(...rows.map(([name, value]) => tableRow(name, value)));
-    $('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
-    $('headers-note').hidden = false;
-  }
-
-  function showError(message) {
-    $('response-empty').hidden = true;
-    $('response-content').hidden = true;
-    $('response-error').hidden = false;
-    $('response-error').textContent = message;
   }
 
   // The draft as it was when Send was pressed: the user may edit the editor while a slow request is in flight.
@@ -1273,7 +1559,7 @@ function startApp() {
   // ---- Export, import, clear ----
 
   $('export').addEventListener('click', () => {
-    const text = serializeWorkspace({ history, collections }, new Date().toISOString());
+    const text = serializeWorkspace({ history, collections, environments }, new Date().toISOString());
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     link.download = 'postman-alternative-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -1288,13 +1574,14 @@ function startApp() {
     if (!file) return;
     try {
       const imported = parseExport(await file.text());
-      const before = { history: history.length, requests: countRequests(collections) };
+      const before = { history: history.length, requests: countRequests(collections), environments: environments.length };
       history = mergeHistory(history, imported.history);
       saveHistory(history);
       showHistory();
       setCollections(mergeCollections(collections, imported.collections));
+      setEnvironments(mergeEnvironments(environments, imported.environments));
       setNotice('Imported from ' + file.name + ': ' + (countRequests(collections) - before.requests) + ' saved request(s), '
-        + (history.length - before.history) + ' history entr(ies).');
+        + (environments.length - before.environments) + ' environment(s), ' + (history.length - before.history) + ' history entr(ies).');
     } catch (error) {
       setNotice(error.message);
     }
@@ -1322,6 +1609,7 @@ function startApp() {
     }
   }
 
+  showEnvironmentPicker();
   showDraft();
   showHistory();
   showCollections();
@@ -1363,7 +1651,7 @@ function countRequests(collections) {
 
 /** " (3)" for three rows that will be sent, or "" when none will. */
 function countLabel(rows) {
-  const count = rows.filter(row => row.enabled !== false && (row.key || '').trim()).length;
+  const count = enabledRows(rows).length;
   return count ? ' (' + count + ')' : '';
 }
 
@@ -1372,17 +1660,6 @@ function paragraph(text) {
   const p = document.createElement('p');
   p.textContent = text;
   return p;
-}
-
-/** A table row: the header name in a <th>, its value in a <td>. */
-function tableRow(name, value) {
-  const row = document.createElement('tr');
-  const key = document.createElement('th');
-  key.textContent = name;
-  const cell = document.createElement('td');
-  cell.textContent = value;
-  row.append(key, cell);
-  return row;
 }
 
 startApp();

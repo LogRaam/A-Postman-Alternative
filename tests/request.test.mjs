@@ -2,7 +2,8 @@
 
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildUrl, enabledRows } from '../src/core/url.js';
+import { buildUrl } from '../src/core/url.js';
+import { enabledRows } from '../src/core/rows.js';
 import { toFetchRequest, isForbiddenHeader } from '../src/core/request.js';
 import { emptyDraft } from '../src/core/draft.js';
 

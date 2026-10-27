@@ -1,6 +1,7 @@
 /** Turning the editor's draft into what fetch() is called with, and saying what the browser will refuse. */
 
-import { buildUrl, enabledRows } from './url.js';
+import { buildUrl } from './url.js';
+import { enabledRows } from './rows.js';
 
 /** The methods offered in the editor, in menu order. */
 export const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];

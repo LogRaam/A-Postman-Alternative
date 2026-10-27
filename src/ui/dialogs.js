@@ -4,7 +4,7 @@
  * Asks for one line of text. Resolves with the trimmed text, or null when cancelled or left blank.
  */
 export function askText({ title, label, initial = '', confirm = 'OK' }) {
-  return openDialog(title, confirm, form => {
+  return openFormDialog(title, confirm, form => {
     const input = field(form, label, 'text');
     input.value = initial;
     return { focus: input, read: () => input.value.trim() || null };
@@ -16,7 +16,7 @@ export function askText({ title, label, initial = '', confirm = 'OK' }) {
  * here) and optionally a folder of it. Resolves with { name, collectionId, newCollectionName, folderId } or null.
  */
 export function askSaveTarget(collections, suggestedName) {
-  return openDialog('Save request', 'Save', form => {
+  return openFormDialog('Save request', 'Save', form => {
     const name = field(form, 'Name', 'text');
     name.value = suggestedName;
 
@@ -47,8 +47,11 @@ export function askSaveTarget(collections, suggestedName) {
   });
 }
 
-/** Opens the dialog with a form built by build(form); resolves with build's read() on confirm, null on cancel. */
-function openDialog(title, confirmLabel, build) {
+/**
+ * Opens the page's dialog on a form built by build(form), which returns { focus, read }. Resolves with read()
+ * on confirm, null on cancel or Escape.
+ */
+export function openFormDialog(title, confirmLabel, build) {
   const dialog = document.getElementById('dialog');
   const form = document.createElement('form');
   form.method = 'dialog';

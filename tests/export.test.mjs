@@ -1,4 +1,4 @@
-// The export file: the workspace (history and collections) written out and read back, across versions.
+// The export file: the workspace (history, collections, environments) written out and read back, across versions.
 
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -6,6 +6,7 @@ import { serializeWorkspace, parseExport, EXPORT_FORMAT, EXPORT_VERSION } from '
 import { historyEntry } from '../src/core/history.js';
 import { addCollection, addFolder, addRequest } from '../src/core/collections.js';
 import { emptyDraft } from '../src/core/draft.js';
+import { addEnvironment, setVariables } from '../src/core/environments.js';
 
 function sampleWorkspace() {
   const history = [
@@ -15,7 +16,8 @@ function sampleWorkspace() {
   let collections = addFolder(addCollection([], 'API', 'c1'), 'c1', 'Users', 'f1');
   collections = addRequest(collections, { collectionId: 'c1', folderId: 'f1', name: 'List', draft: { ...emptyDraft(), url: 'https://a/users' }, id: 'r1' });
   collections = addRequest(collections, { collectionId: 'c1', name: 'Top', draft: emptyDraft(), id: 'r2' });
-  return { history, collections };
+  const environments = setVariables(addEnvironment([], 'Dev', 'e1'), 'e1', [{ enabled: true, key: 'baseUrl', value: 'https://dev' }]);
+  return { history, collections, environments };
 }
 
 describe('The export file', () => {

@@ -1,5 +1,7 @@
 /** Building the URL a request is sent to, from the typed address and the query-parameter rows. */
 
+import { enabledRows } from './rows.js';
+
 /**
  * Appends every enabled, named parameter row to the address, keeping any query the address already has.
  * Throws a plain-language error when the address is not an absolute http(s) URL.
@@ -19,11 +21,4 @@ export function buildUrl(address, paramRows) {
   }
   for (const row of enabledRows(paramRows)) url.searchParams.append(row.key, row.value);
   return url.toString();
-}
-
-/** The rows a request should use: ticked, and with a non-blank name. Names are trimmed, values kept as typed. */
-export function enabledRows(rows) {
-  return (rows || [])
-    .filter(row => row && row.enabled !== false && (row.key || '').trim() !== '')
-    .map(row => ({ key: row.key.trim(), value: row.value ?? '' }));
 }

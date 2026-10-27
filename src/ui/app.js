@@ -2,17 +2,23 @@
 
 import { METHODS, toFetchRequest, methodTakesNoBody } from '../core/request.js';
 import { emptyDraft, copyDraft, sameDraft } from '../core/draft.js';
-import { statusLabel, statusClass, formatBytes, formatDuration, prettyBody } from '../core/response.js';
 import { explainFetchError } from '../core/errors.js';
+import { enabledRows } from '../core/rows.js';
+import { resolveDraft, referencedNames, missingVariablesWarning, mergeEnvironments } from '../core/environments.js';
 import { historyEntry, addToHistory, mergeHistory } from '../core/history.js';
 import { addCollection, addFolder, addRequest, updateRequestDraft, renameItem, removeItem, findRequest, requestPath, mergeCollections } from '../core/collections.js';
 import { makeId } from '../core/ids.js';
 import { serializeWorkspace, parseExport } from '../core/export-format.js';
-import { loadDraft, saveDraft, loadHistory, saveHistory, loadCollections, saveCollections, loadOpenRequestId, saveOpenRequestId } from './store.js';
+import {
+  loadDraft, saveDraft, loadHistory, saveHistory, loadCollections, saveCollections, loadOpenRequestId, saveOpenRequestId,
+  loadEnvironments, saveEnvironments, loadActiveEnvironmentId, saveActiveEnvironmentId,
+} from './store.js';
 import { renderRows } from './rows-editor.js';
 import { renderHistory } from './history-panel.js';
 import { renderCollections } from './collections-panel.js';
 import { askText, askSaveTarget } from './dialogs.js';
+import { manageEnvironments } from './environments-dialog.js';
+import { showResponse, showError, setSending } from './response-view.js';
 
 /** Starts the app once the page is loaded. */
 export function startApp() {
@@ -22,12 +28,14 @@ export function startApp() {
   let collections = loadCollections();
   let openRequestId = loadOpenRequestId();
   if (openRequestId && !findRequest(collections, openRequestId)) openRequestId = null;
+  let environments = loadEnvironments();
+  let activeEnvironmentId = loadActiveEnvironmentId();
   let inFlight = null;
 
   const method = $('method');
   for (const name of METHODS) method.append(new Option(name, name));
 
-  const changed = () => { saveDraft(draft); refreshBodyHint(); refreshTitle(); };
+  const changed = () => { saveDraft(draft); refreshBodyHint(); refreshTitle(); refreshPreview(); };
 
   function showDraft() {
     method.value = draft.method;
@@ -38,6 +46,7 @@ export function startApp() {
     renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
     refreshBodyHint();
     refreshTitle();
+    refreshPreview();
   }
 
   function refreshBodyHint() {
@@ -56,6 +65,43 @@ export function startApp() {
     $('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
     $('save-as').hidden = !found;
   }
+
+  /** Under the address: where the request will really go, when the address uses {{variables}}. */
+  function refreshPreview() {
+    const preview = $('resolved-url');
+    if (referencedNames(draft.url).length === 0) { preview.hidden = true; return; }
+    const { draft: resolved, missing } = resolveDraft(draft, activeEnvironment());
+    preview.hidden = false;
+    preview.textContent = 'Sends to ' + resolved.url + (missing.length ? '   (' + missingVariablesWarning(missing, activeEnvironment()) + ')' : '');
+    preview.classList.toggle('missing', missing.length > 0);
+  }
+
+  // ---- Environments ----
+
+  function activeEnvironment() {
+    return environments.find(e => e.id === activeEnvironmentId) || null;
+  }
+
+  function setEnvironments(next, nextActiveId = activeEnvironmentId) {
+    environments = next;
+    activeEnvironmentId = environments.some(e => e.id === nextActiveId) ? nextActiveId : null;
+    saveEnvironments(environments);
+    saveActiveEnvironmentId(activeEnvironmentId);
+    showEnvironmentPicker();
+    refreshPreview();
+  }
+
+  function showEnvironmentPicker() {
+    const picker = $('environment');
+    picker.replaceChildren(new Option('No environment', ''), ...environments.map(e => new Option(e.name, e.id)));
+    picker.value = activeEnvironmentId || '';
+  }
+
+  $('environment').addEventListener('change', () => setEnvironments(environments, $('environment').value || null));
+  $('manage-environments').addEventListener('click', async () => {
+    const chosen = await manageEnvironments(environments, activeEnvironmentId, next => setEnvironments(next));
+    if (chosen) setEnvironments(environments, chosen);
+  });
 
   method.addEventListener('change', () => { draft.method = method.value; changed(); });
   $('url').addEventListener('input', () => { draft.url = $('url').value; changed(); });
@@ -78,14 +124,17 @@ export function startApp() {
   });
 
   async function send() {
+    // The editor keeps the {{names}}; only what is sent carries the environment's values.
+    const resolved = resolveDraft(draft, activeEnvironment());
     let request;
     try {
-      request = toFetchRequest(draft);
+      request = toFetchRequest(resolved.draft);
     } catch (error) {
       showError(error.message);
       return;
     }
-    $('warnings').replaceChildren(...request.warnings.map(text => paragraph(text)));
+    const warnings = [missingVariablesWarning(resolved.missing, activeEnvironment()), ...request.warnings].filter(Boolean);
+    $('warnings').replaceChildren(...warnings.map(text => paragraph(text)));
     const sentAt = Date.now();
     const sent = copyDraft(draft);
     inFlight = new AbortController();
@@ -105,38 +154,6 @@ export function startApp() {
       inFlight = null;
       setSending(false);
     }
-  }
-
-  function setSending(sending) {
-    $('send').textContent = sending ? 'Cancel' : 'Send';
-    $('send').classList.toggle('cancel', sending);
-    $('response').classList.toggle('loading', sending);
-  }
-
-  function showResponse(response, bytes, elapsed) {
-    $('response-empty').hidden = true;
-    $('response-error').hidden = true;
-    $('response-content').hidden = false;
-    const status = $('status');
-    status.textContent = statusLabel(response.status, response.statusText);
-    status.className = 'badge ' + statusClass(response.status);
-    $('time').textContent = formatDuration(elapsed);
-    $('size').textContent = formatBytes(bytes.byteLength);
-    const body = prettyBody(new TextDecoder().decode(bytes));
-    $('response-body').textContent = body.text || '(empty body)';
-    $('response-body').dataset.kind = body.kind;
-    const rows = [];
-    response.headers.forEach((value, name) => rows.push([name, value]));
-    $('response-headers').replaceChildren(...rows.map(([name, value]) => tableRow(name, value)));
-    $('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
-    $('headers-note').hidden = false;
-  }
-
-  function showError(message) {
-    $('response-empty').hidden = true;
-    $('response-content').hidden = true;
-    $('response-error').hidden = false;
-    $('response-error').textContent = message;
   }
 
   // The draft as it was when Send was pressed: the user may edit the editor while a slow request is in flight.
@@ -229,7 +246,7 @@ export function startApp() {
   // ---- Export, import, clear ----
 
   $('export').addEventListener('click', () => {
-    const text = serializeWorkspace({ history, collections }, new Date().toISOString());
+    const text = serializeWorkspace({ history, collections, environments }, new Date().toISOString());
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
     link.download = 'postman-alternative-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -244,13 +261,14 @@ export function startApp() {
     if (!file) return;
     try {
       const imported = parseExport(await file.text());
-      const before = { history: history.length, requests: countRequests(collections) };
+      const before = { history: history.length, requests: countRequests(collections), environments: environments.length };
       history = mergeHistory(history, imported.history);
       saveHistory(history);
       showHistory();
       setCollections(mergeCollections(collections, imported.collections));
+      setEnvironments(mergeEnvironments(environments, imported.environments));
       setNotice('Imported from ' + file.name + ': ' + (countRequests(collections) - before.requests) + ' saved request(s), '
-        + (history.length - before.history) + ' history entr(ies).');
+        + (environments.length - before.environments) + ' environment(s), ' + (history.length - before.history) + ' history entr(ies).');
     } catch (error) {
       setNotice(error.message);
     }
@@ -278,6 +296,7 @@ export function startApp() {
     }
   }
 
+  showEnvironmentPicker();
   showDraft();
   showHistory();
   showCollections();
@@ -319,7 +338,7 @@ function countRequests(collections) {
 
 /** " (3)" for three rows that will be sent, or "" when none will. */
 function countLabel(rows) {
-  const count = rows.filter(row => row.enabled !== false && (row.key || '').trim()).length;
+  const count = enabledRows(rows).length;
   return count ? ' (' + count + ')' : '';
 }
 
@@ -328,15 +347,4 @@ function paragraph(text) {
   const p = document.createElement('p');
   p.textContent = text;
   return p;
-}
-
-/** A table row: the header name in a <th>, its value in a <td>. */
-function tableRow(name, value) {
-  const row = document.createElement('tr');
-  const key = document.createElement('th');
-  key.textContent = name;
-  const cell = document.createElement('td');
-  cell.textContent = value;
-  row.append(key, cell);
-  return row;
 }

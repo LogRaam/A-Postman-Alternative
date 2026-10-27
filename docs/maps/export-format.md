@@ -56,3 +56,10 @@ mode, until it is declared on purpose with `ALLOW_FORMAT_FIELD_REMOVAL=1` and ex
 | `collections[].requests[].draft.headers[].value` | string |
 | `collections[].requests[].draft.bodyMode` | string |
 | `collections[].requests[].draft.body` | string |
+| `environments` | array |
+| `environments[].id` | string |
+| `environments[].name` | string |
+| `environments[].variables` | array |
+| `environments[].variables[].enabled` | boolean |
+| `environments[].variables[].key` | string |
+| `environments[].variables[].value` | string |

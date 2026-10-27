@@ -3,18 +3,17 @@
  * Every place that stores a request stores this shape, so its fields are listed once, here.
  */
 
+import { copyRow, ROW_FIELDS } from './rows.js';
+import { fieldsAt } from './fields.js';
+
 /** Every field of a draft, as [path, type], for the export file's validator and map. "[]" marks array items. */
 export const DRAFT_FIELDS = [
   ['method', 'string'],
   ['url', 'string'],
   ['params', 'array'],
-  ['params[].enabled', 'boolean'],
-  ['params[].key', 'string'],
-  ['params[].value', 'string'],
+  ...fieldsAt('params[]', ROW_FIELDS),
   ['headers', 'array'],
-  ['headers[].enabled', 'boolean'],
-  ['headers[].key', 'string'],
-  ['headers[].value', 'string'],
+  ...fieldsAt('headers[]', ROW_FIELDS),
   ['bodyMode', 'string'],
   ['body', 'string'],
 ];
@@ -40,9 +39,4 @@ export function copyDraft(draft) {
 /** True when two drafts would send the same request: what "unsaved changes" means for a saved request. */
 export function sameDraft(a, b) {
   return JSON.stringify(copyDraft(a)) === JSON.stringify(copyDraft(b));
-}
-
-/** A row with all three fields present: ticked unless explicitly unticked, empty strings rather than undefined. */
-function copyRow(row) {
-  return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
 }

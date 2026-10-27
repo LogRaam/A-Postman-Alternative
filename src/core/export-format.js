@@ -1,10 +1,12 @@
 /**
  * The export file: the one format this app promises to read back, so a file exported today still imports
- * after an upgrade. It carries the whole workspace: history and collections. EXPORT_FIELDS is both the
+ * after an upgrade. It carries the whole workspace: history, collections and environments. EXPORT_FIELDS is both the
  * validator and the source of the export-format map; a field removed from it is refused once it has shipped.
  */
 
 import { DRAFT_FIELDS, copyDraft } from './draft.js';
+import { ROW_FIELDS, copyRow } from './rows.js';
+import { fieldsAt } from './fields.js';
 
 /** The value of the file's "format" field; a file without it is not one of ours. */
 export const EXPORT_FORMAT = 'postman-alternative';
@@ -25,7 +27,7 @@ export const EXPORT_FIELDS = [
   ['history[].id', 'string'],
   ['history[].sentAt', 'number'],
   ['history[].draft', 'object'],
-  ...draftFieldsAt('history[].draft'),
+  ...fieldsAt('history[].draft', DRAFT_FIELDS),
   ['history[].status', 'number|null'],
   ['history[].error', 'string|null'],
   ['collections', 'array'],
@@ -39,11 +41,16 @@ export const EXPORT_FIELDS = [
   ['collections[].requests[].name', 'string'],
   ['collections[].requests[].folderId', 'string|null'],
   ['collections[].requests[].draft', 'object'],
-  ...draftFieldsAt('collections[].requests[].draft'),
+  ...fieldsAt('collections[].requests[].draft', DRAFT_FIELDS),
+  ['environments', 'array'],
+  ['environments[].id', 'string'],
+  ['environments[].name', 'string'],
+  ['environments[].variables', 'array'],
+  ...fieldsAt('environments[].variables[]', ROW_FIELDS),
 ];
 
 /** The text of an export file for this workspace. */
-export function serializeWorkspace({ history, collections }, exportedAt) {
+export function serializeWorkspace({ history, collections, environments }, exportedAt) {
   const file = {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
@@ -55,12 +62,13 @@ export function serializeWorkspace({ history, collections }, exportedAt) {
       folders: c.folders.map(f => ({ id: f.id, name: f.name })),
       requests: c.requests.map(r => ({ id: r.id, name: r.name, folderId: r.folderId ?? null, draft: copyDraft(r.draft) })),
     })),
+    environments: environments.map(e => ({ id: e.id, name: e.name, variables: e.variables.map(copyRow) })),
   };
   return JSON.stringify(file, null, 2) + '\n';
 }
 
 /**
- * The workspace in an export file: { history, collections }. Throws a plain-language error naming the first
+ * The workspace in an export file: { history, collections, environments }. Throws a plain-language error naming the first
  * field that is missing or of the wrong type, or a version newer than this code knows.
  */
 export function parseExport(text) {
@@ -75,12 +83,7 @@ export function parseExport(text) {
     throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
   }
   for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
-  return { history: file.history, collections: file.collections };
-}
-
-/** DRAFT_FIELDS with their paths placed under a prefix, such as "history[].draft". */
-function draftFieldsAt(prefix) {
-  return DRAFT_FIELDS.map(([path, type]) => [prefix + '.' + path, type]);
+  return { history: file.history, collections: file.collections, environments: file.environments };
 }
 
 /** Walks one field path into the file and throws when the value at its end is not of the expected type. */

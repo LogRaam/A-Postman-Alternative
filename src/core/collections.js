@@ -4,6 +4,7 @@
  */
 
 import { copyDraft } from './draft.js';
+import { cleanName } from './names.js';
 
 /** The list with a new, empty collection added at the end. */
 export function addCollection(collections, name, id) {
@@ -85,10 +86,4 @@ export function mergeCollections(collections, imported) {
 /** The requests of a collection that sit directly in it, or in one folder, in the order they were saved. */
 export function requestsIn(collection, folderId = null) {
   return collection.requests.filter(r => (r.folderId || null) === folderId);
-}
-
-/** A name trimmed, or the fallback when nothing but spaces was typed. */
-function cleanName(name, fallback) {
-  const trimmed = (name || '').trim();
-  return trimmed || fallback;
 }
