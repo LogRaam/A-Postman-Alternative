@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relais</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc;
+  --accent: #2f5fd0; --accent-text: #ffffff; --input: #ffffff; --code: #f1f0ec;
+  --ok: #1f7a3a; --redirect: #8a5a00; --client-error: #b4321f; --server-error: #8d1f5c; --failed: #6b6b66;
+  --warn-bg: #fff4dc; --warn-text: #6b4a00; --error-bg: #fdecea; --error-text: #8a1f12;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --panel: #1f1f1d; --text: #ecebe6; --muted: #a09f98; --line: #34332f;
+    --accent: #6f95ff; --accent-text: #0d1430; --input: #262623; --code: #262623;
+    --ok: #5fcf83; --redirect: #e5b452; --client-error: #ff8a76; --server-error: #f08ac2; --failed: #a09f98;
+    --warn-bg: #3a2f12; --warn-text: #f3d48a; --error-bg: #3d1a16; --error-text: #ffb4a8;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+code, pre, textarea, .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; }
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100%; }
+aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+aside header { padding: 14px 14px 8px; }
+aside h1 { font-size: 16px; margin: 0 0 2px; }
+aside .tagline { color: var(--muted); font-size: 12px; margin: 0; }
+.history-tools { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); align-items: center; }
+.history-tools h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 auto 0 0; }
+#history { list-style: none; margin: 0; padding: 4px 0; overflow: auto; flex: 1; }
+#history button { display: flex; gap: 8px; width: 100%; text-align: left; border: 0; background: none; padding: 6px 14px; cursor: pointer; align-items: baseline; }
+#history button:hover { background: var(--code); }
+#history .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outcome { font-family: ui-monospace, Consolas, monospace; font-size: 12px; min-width: 40px; }
+.ok { color: var(--ok); } .redirect { color: var(--redirect); } .client-error { color: var(--client-error); }
+.server-error { color: var(--server-error); } .failed { color: var(--failed); }
+#history-empty, #notice { color: var(--muted); font-size: 12px; padding: 8px 14px; margin: 0; }
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 14px 16px; gap: 10px; overflow: auto; }
+#request-line { display: flex; gap: 8px; }
+#method { width: 110px; font-weight: 600; }
+#url { flex: 1; min-width: 0; }
+input[type=text], select, textarea { background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+input[type=text]:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+#send { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 6px; padding: 0 20px; font-weight: 600; cursor: pointer; }
+#send.cancel { background: var(--client-error); }
+button.small { border: 1px solid var(--line); background: var(--panel); border-radius: 5px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
+button.link { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 4px 0; }
+button.icon { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 6px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+[role=tablist] { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: -4px 0 10px; }
+[role=tab] { border: 0; background: none; padding: 6px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
+[role=tab][aria-selected=true] { color: var(--text); border-bottom-color: var(--accent); }
+.row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 2fr) 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+input.forbidden { text-decoration: line-through; color: var(--client-error); }
+.body-line { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+#body-hint { color: var(--warn-text); font-size: 12px; }
+#body { width: 100%; min-height: 140px; resize: vertical; }
+#warnings p { background: var(--warn-bg); color: var(--warn-text); border-radius: 6px; padding: 6px 10px; margin: 0 0 6px; }
+#response { flex: 1; display: flex; flex-direction: column; min-height: 220px; }
+#response.loading { opacity: .6; }
+.meta { display: flex; gap: 14px; align-items: baseline; margin-bottom: 8px; color: var(--muted); }
+.badge { font-weight: 700; }
+#response-body { background: var(--code); border-radius: 6px; padding: 10px; margin: 0; overflow: auto; white-space: pre-wrap; word-break: break-word; max-height: 60vh; }
+#response-headers { border-collapse: collapse; width: 100%; }
+#response-headers th, #response-headers td { text-align: left; vertical-align: top; padding: 4px 8px; border-bottom: 1px solid var(--line); font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all; }
+#response-headers th { width: 30%; color: var(--muted); font-weight: 500; }
+.note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+#response-empty { color: var(--muted); }
+#response-error { background: var(--error-bg); color: var(--error-text); border-radius: 6px; padding: 10px 12px; margin: 0; }
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 30vh; }
+  #request-line { flex-wrap: wrap; }
+  #url { flex-basis: 100%; order: -1; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <header>
+      <h1>Relais</h1>
+      <p class="tagline">An HTTP client in one file.</p>
+    </header>
+    <div class="history-tools">
+      <h2>History</h2>
+      <button type="button" class="small" id="export" title="Save the history as a JSON file">Export</button>
+      <button type="button" class="small" id="import" title="Add the requests from an exported file">Import</button>
+      <button type="button" class="small" id="clear" title="Remove every request from the history">Clear</button>
+    </div>
+    <p id="notice" aria-live="polite"></p>
+    <p id="history-empty">Requests you send appear here. Click one to load it again.</p>
+    <ul id="history"></ul>
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+  </aside>
+  <main>
+    <form id="request-line" autocomplete="off">
+      <select id="method" aria-label="Method"></select>
+      <input type="text" id="url" placeholder="https://httpbin.org/get" aria-label="Address" spellcheck="false">
+      <button type="submit" id="send" title="Send (Ctrl+Enter)">Send</button>
+    </form>
+    <section class="panel">
+      <div role="tablist" id="request-tabs">
+        <button type="button" role="tab" id="tab-params" aria-controls="params" aria-selected="true">Params</button>
+        <button type="button" role="tab" id="tab-headers" aria-controls="headers" aria-selected="false">Headers</button>
+        <button type="button" role="tab" id="tab-body" aria-controls="body-panel" aria-selected="false">Body</button>
+      </div>
+      <div id="params" role="tabpanel"></div>
+      <div id="headers" role="tabpanel" hidden></div>
+      <div id="body-panel" role="tabpanel" hidden>
+        <div class="body-line">
+          <select id="body-mode" aria-label="Body type">
+            <option value="none">No body</option>
+            <option value="json">JSON</option>
+            <option value="text">Raw text</option>
+          </select>
+          <span id="body-hint"></span>
+        </div>
+        <textarea id="body" spellcheck="false" placeholder='{"name": "value"}'></textarea>
+      </div>
+    </section>
+    <div id="warnings" aria-live="polite"></div>
+    <section class="panel" id="response" aria-live="polite">
+      <p id="response-empty">Send a request to see the response here.</p>
+      <p id="response-error" hidden></p>
+      <div id="response-content" hidden>
+        <div class="meta">
+          <span class="badge" id="status"></span>
+          <span id="time"></span>
+          <span id="size"></span>
+        </div>
+        <div role="tablist" id="response-tabs">
+          <button type="button" role="tab" id="tab-response-body" aria-controls="response-body-panel" aria-selected="true">Body</button>
+          <button type="button" role="tab" id="tab-response-headers" aria-controls="response-headers-panel" aria-selected="false">Headers</button>
+        </div>
+        <div id="response-body-panel" role="tabpanel"><pre id="response-body"></pre></div>
+        <div id="response-headers-panel" role="tabpanel" hidden>
+          <table id="response-headers"></table>
+          <p class="note" id="headers-note" hidden>A web page only sees the response headers the server chooses to expose (Access-Control-Expose-Headers), so some may be missing here.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+/*@bundle@*/
+</script>
+</body>
+</html>

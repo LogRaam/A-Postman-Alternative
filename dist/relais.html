@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relais</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e2e1dc;
+  --accent: #2f5fd0; --accent-text: #ffffff; --input: #ffffff; --code: #f1f0ec;
+  --ok: #1f7a3a; --redirect: #8a5a00; --client-error: #b4321f; --server-error: #8d1f5c; --failed: #6b6b66;
+  --warn-bg: #fff4dc; --warn-text: #6b4a00; --error-bg: #fdecea; --error-text: #8a1f12;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161615; --panel: #1f1f1d; --text: #ecebe6; --muted: #a09f98; --line: #34332f;
+    --accent: #6f95ff; --accent-text: #0d1430; --input: #262623; --code: #262623;
+    --ok: #5fcf83; --redirect: #e5b452; --client-error: #ff8a76; --server-error: #f08ac2; --failed: #a09f98;
+    --warn-bg: #3a2f12; --warn-text: #f3d48a; --error-bg: #3d1a16; --error-text: #ffb4a8;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+button, input, select, textarea { font: inherit; color: inherit; }
+code, pre, textarea, .mono { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 13px; }
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); height: 100%; }
+aside { border-right: 1px solid var(--line); background: var(--panel); display: flex; flex-direction: column; min-height: 0; }
+aside header { padding: 14px 14px 8px; }
+aside h1 { font-size: 16px; margin: 0 0 2px; }
+aside .tagline { color: var(--muted); font-size: 12px; margin: 0; }
+.history-tools { display: flex; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); align-items: center; }
+.history-tools h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 0 auto 0 0; }
+#history { list-style: none; margin: 0; padding: 4px 0; overflow: auto; flex: 1; }
+#history button { display: flex; gap: 8px; width: 100%; text-align: left; border: 0; background: none; padding: 6px 14px; cursor: pointer; align-items: baseline; }
+#history button:hover { background: var(--code); }
+#history .label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.outcome { font-family: ui-monospace, Consolas, monospace; font-size: 12px; min-width: 40px; }
+.ok { color: var(--ok); } .redirect { color: var(--redirect); } .client-error { color: var(--client-error); }
+.server-error { color: var(--server-error); } .failed { color: var(--failed); }
+#history-empty, #notice { color: var(--muted); font-size: 12px; padding: 8px 14px; margin: 0; }
+main { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 14px 16px; gap: 10px; overflow: auto; }
+#request-line { display: flex; gap: 8px; }
+#method { width: 110px; font-weight: 600; }
+#url { flex: 1; min-width: 0; }
+input[type=text], select, textarea { background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 7px 9px; }
+input[type=text]:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+#send { background: var(--accent); color: var(--accent-text); border: 0; border-radius: 6px; padding: 0 20px; font-weight: 600; cursor: pointer; }
+#send.cancel { background: var(--client-error); }
+button.small { border: 1px solid var(--line); background: var(--panel); border-radius: 5px; padding: 2px 8px; font-size: 12px; cursor: pointer; }
+button.link { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 4px 0; }
+button.icon { border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 18px; line-height: 1; padding: 0 6px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+[role=tablist] { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: -4px 0 10px; }
+[role=tab] { border: 0; background: none; padding: 6px 10px; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; }
+[role=tab][aria-selected=true] { color: var(--text); border-bottom-color: var(--accent); }
+.row { display: grid; grid-template-columns: 22px minmax(0, 1fr) minmax(0, 2fr) 28px; gap: 6px; align-items: center; margin-bottom: 6px; }
+input.forbidden { text-decoration: line-through; color: var(--client-error); }
+.body-line { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+#body-hint { color: var(--warn-text); font-size: 12px; }
+#body { width: 100%; min-height: 140px; resize: vertical; }
+#warnings p { background: var(--warn-bg); color: var(--warn-text); border-radius: 6px; padding: 6px 10px; margin: 0 0 6px; }
+#response { flex: 1; display: flex; flex-direction: column; min-height: 220px; }
+#response.loading { opacity: .6; }
+.meta { display: flex; gap: 14px; align-items: baseline; margin-bottom: 8px; color: var(--muted); }
+.badge { font-weight: 700; }
+#response-body { background: var(--code); border-radius: 6px; padding: 10px; margin: 0; overflow: auto; white-space: pre-wrap; word-break: break-word; max-height: 60vh; }
+#response-headers { border-collapse: collapse; width: 100%; }
+#response-headers th, #response-headers td { text-align: left; vertical-align: top; padding: 4px 8px; border-bottom: 1px solid var(--line); font-family: ui-monospace, Consolas, monospace; font-size: 13px; word-break: break-all; }
+#response-headers th { width: 30%; color: var(--muted); font-weight: 500; }
+.note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+#response-empty { color: var(--muted); }
+#response-error { background: var(--error-bg); color: var(--error-text); border-radius: 6px; padding: 10px 12px; margin: 0; }
+@media (max-width: 720px) {
+  .layout { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 30vh; }
+  #request-line { flex-wrap: wrap; }
+  #url { flex-basis: 100%; order: -1; }
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <header>
+      <h1>Relais</h1>
+      <p class="tagline">An HTTP client in one file.</p>
+    </header>
+    <div class="history-tools">
+      <h2>History</h2>
+      <button type="button" class="small" id="export" title="Save the history as a JSON file">Export</button>
+      <button type="button" class="small" id="import" title="Add the requests from an exported file">Import</button>
+      <button type="button" class="small" id="clear" title="Remove every request from the history">Clear</button>
+    </div>
+    <p id="notice" aria-live="polite"></p>
+    <p id="history-empty">Requests you send appear here. Click one to load it again.</p>
+    <ul id="history"></ul>
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+  </aside>
+  <main>
+    <form id="request-line" autocomplete="off">
+      <select id="method" aria-label="Method"></select>
+      <input type="text" id="url" placeholder="https://httpbin.org/get" aria-label="Address" spellcheck="false">
+      <button type="submit" id="send" title="Send (Ctrl+Enter)">Send</button>
+    </form>
+    <section class="panel">
+      <div role="tablist" id="request-tabs">
+        <button type="button" role="tab" id="tab-params" aria-controls="params" aria-selected="true">Params</button>
+        <button type="button" role="tab" id="tab-headers" aria-controls="headers" aria-selected="false">Headers</button>
+        <button type="button" role="tab" id="tab-body" aria-controls="body-panel" aria-selected="false">Body</button>
+      </div>
+      <div id="params" role="tabpanel"></div>
+      <div id="headers" role="tabpanel" hidden></div>
+      <div id="body-panel" role="tabpanel" hidden>
+        <div class="body-line">
+          <select id="body-mode" aria-label="Body type">
+            <option value="none">No body</option>
+            <option value="json">JSON</option>
+            <option value="text">Raw text</option>
+          </select>
+          <span id="body-hint"></span>
+        </div>
+        <textarea id="body" spellcheck="false" placeholder='{"name": "value"}'></textarea>
+      </div>
+    </section>
+    <div id="warnings" aria-live="polite"></div>
+    <section class="panel" id="response" aria-live="polite">
+      <p id="response-empty">Send a request to see the response here.</p>
+      <p id="response-error" hidden></p>
+      <div id="response-content" hidden>
+        <div class="meta">
+          <span class="badge" id="status"></span>
+          <span id="time"></span>
+          <span id="size"></span>
+        </div>
+        <div role="tablist" id="response-tabs">
+          <button type="button" role="tab" id="tab-response-body" aria-controls="response-body-panel" aria-selected="true">Body</button>
+          <button type="button" role="tab" id="tab-response-headers" aria-controls="response-headers-panel" aria-selected="false">Headers</button>
+        </div>
+        <div id="response-body-panel" role="tabpanel"><pre id="response-body"></pre></div>
+        <div id="response-headers-panel" role="tabpanel" hidden>
+          <table id="response-headers"></table>
+          <p class="note" id="headers-note" hidden>A web page only sees the response headers the server chooses to expose (Access-Control-Expose-Headers), so some may be missing here.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<script>
+(() => {
+'use strict';
+
+// ---- src/core/url.js ----
+/** Building the URL a request is sent to, from the typed address and the query-parameter rows. */
+
+/**
+ * Appends every enabled, named parameter row to the address, keeping any query the address already has.
+ * Throws a plain-language error when the address is not an absolute http(s) URL.
+ */
+function buildUrl(address, paramRows) {
+  const trimmed = (address || '').trim();
+  if (!trimmed) throw new Error('Type an address first, such as https://httpbin.org/get.');
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : 'https://' + trimmed;
+  let url;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    throw new Error('"' + trimmed + '" is not a valid address.');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Only http and https addresses can be sent, not ' + url.protocol.replace(':', '') + '.');
+  }
+  for (const row of enabledRows(paramRows)) url.searchParams.append(row.key, row.value);
+  return url.toString();
+}
+
+/** The rows a request should use: ticked, and with a non-blank name. Names are trimmed, values kept as typed. */
+function enabledRows(rows) {
+  return (rows || [])
+    .filter(row => row && row.enabled !== false && (row.key || '').trim() !== '')
+    .map(row => ({ key: row.key.trim(), value: row.value ?? '' }));
+}
+
+// ---- src/core/request.js ----
+/** Turning the editor's draft into what fetch() is called with, and saying what the browser will refuse. */
+
+
+/** The methods offered in the editor, in menu order. */
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
+/** Body modes: none, JSON (validated and sent as application/json), or raw text sent as typed. */
+const BODY_MODES = ['none', 'json', 'text'];
+
+/**
+ * Header names a page may not set: the browser drops them silently. Listed so the editor can say so
+ * instead of letting the user believe they were sent. From the Fetch standard's forbidden request-headers.
+ */
+const FORBIDDEN_HEADERS = [
+  'accept-charset', 'accept-encoding', 'access-control-request-headers', 'access-control-request-method',
+  'connection', 'content-length', 'cookie', 'cookie2', 'date', 'dnt', 'expect', 'host', 'keep-alive',
+  'origin', 'referer', 'set-cookie', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'user-agent', 'via',
+];
+
+/** A new, empty draft: what the editor shows on first open. */
+function emptyDraft() {
+  return { method: 'GET', url: '', params: [], headers: [], bodyMode: 'none', body: '' };
+}
+
+/** True when the browser will drop this header name rather than send it. */
+function isForbiddenHeader(name) {
+  const lower = (name || '').trim().toLowerCase();
+  return FORBIDDEN_HEADERS.includes(lower) || lower.startsWith('proxy-') || lower.startsWith('sec-');
+}
+
+/** True when the method carries no body: fetch() throws if one is given. */
+function methodTakesNoBody(method) {
+  return method === 'GET' || method === 'HEAD';
+}
+
+/**
+ * The URL and fetch() options for a draft, plus warnings the user should see before reading the response
+ * (headers the browser drops, a body ignored by GET). Throws a plain-language error for a draft that cannot
+ * be sent at all (bad address, invalid JSON).
+ */
+function toFetchRequest(draft) {
+  const url = buildUrl(draft.url, draft.params);
+  const warnings = [];
+  const headers = [];
+  for (const row of enabledRows(draft.headers)) {
+    if (isForbiddenHeader(row.key)) warnings.push('The browser does not let a page set "' + row.key + '"; it was not sent.');
+    else headers.push([row.key, row.value]);
+  }
+
+  let body;
+  if (draft.bodyMode !== 'none' && (draft.body || '') !== '') {
+    if (methodTakesNoBody(draft.method)) {
+      warnings.push('A ' + draft.method + ' request carries no body; the body was not sent.');
+    } else if (draft.bodyMode === 'json') {
+      try {
+        JSON.parse(draft.body);
+      } catch (error) {
+        throw new Error('The JSON body is not valid: ' + error.message);
+      }
+      body = draft.body;
+      if (!hasHeader(headers, 'content-type')) headers.push(['Content-Type', 'application/json']);
+    } else {
+      body = draft.body;
+    }
+  }
+
+  const init = { method: draft.method, headers };
+  if (body !== undefined) init.body = body;
+  return { url, init, warnings };
+}
+
+/** True when a header of this name (already lower-cased) is in the list, in any case. */
+function hasHeader(headers, lowerName) {
+  return headers.some(([name]) => name.toLowerCase() === lowerName);
+}
+
+// ---- src/core/response.js ----
+/** Describing a response for the reader: status wording, size, duration, and a readable body. */
+
+/** "200 OK"-style label; the browser gives an empty statusText over HTTP/2, so common reasons are filled in. */
+function statusLabel(status, statusText) {
+  const reason = statusText || REASONS[status] || '';
+  return reason ? status + ' ' + reason : String(status);
+}
+
+/** Which colour family a status belongs to: success, redirect, client error, server error. */
+function statusClass(status) {
+  if (status >= 200 && status < 300) return 'ok';
+  if (status >= 300 && status < 400) return 'redirect';
+  if (status >= 400 && status < 500) return 'client-error';
+  return 'server-error';
+}
+
+/** Bytes as the reader says them: 512 B, 1.4 KB, 3.2 MB. */
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/** Milliseconds as the reader says them: 85 ms, 1.24 s. */
+function formatDuration(ms) {
+  if (ms < 1000) return Math.round(ms) + ' ms';
+  return (ms / 1000).toFixed(2) + ' s';
+}
+
+/**
+ * The body as it should be shown: JSON re-indented when it parses (whatever the content type claims),
+ * otherwise the text as received. Reports which of the two it did.
+ */
+function prettyBody(text) {
+  const trimmed = (text || '').trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      return { text: JSON.stringify(JSON.parse(trimmed), null, 2), kind: 'json' };
+    } catch {
+      // Not JSON after all: shown as received.
+    }
+  }
+  return { text: text || '', kind: 'text' };
+}
+
+/** Reason phrases for the statuses most often seen, used when the browser gives none. */
+const REASONS = {
+  200: 'OK', 201: 'Created', 202: 'Accepted', 204: 'No Content', 301: 'Moved Permanently', 302: 'Found',
+  304: 'Not Modified', 307: 'Temporary Redirect', 308: 'Permanent Redirect', 400: 'Bad Request',
+  401: 'Unauthorized', 403: 'Forbidden', 404: 'Not Found', 405: 'Method Not Allowed', 409: 'Conflict',
+  415: 'Unsupported Media Type', 422: 'Unprocessable Content', 429: 'Too Many Requests',
+  500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout',
+};
+
+// ---- src/core/errors.js ----
+/** Turning what fetch() throws into a sentence the user can act on. */
+
+/**
+ * A plain explanation of a failed send. fetch() reports CORS refusals, DNS failures and refused
+ * connections all as the same TypeError, and the browser hides which one it was on purpose, so the
+ * message says so rather than guessing.
+ */
+function explainFetchError(error, url, pageProtocol) {
+  if (error && error.name === 'AbortError') return 'Cancelled.';
+  if (pageProtocol === 'https:' && (url || '').startsWith('http:')) {
+    return 'This page is served over https, and the browser blocks requests to plain http addresses from it.';
+  }
+  if (error && error.name === 'TypeError') {
+    return 'The request did not get a response the browser will show. Either the server does not allow '
+      + 'requests from a web page (CORS: it must answer with an Access-Control-Allow-Origin header), or it '
+      + 'could not be reached (wrong address, server down, no network). The browser does not say which. '
+      + 'The developer console (F12) usually names the reason.';
+  }
+  return (error && error.message) || 'The request failed for an unknown reason.';
+}
+
+// ---- src/core/history.js ----
+/** The list of requests already sent: newest first, capped, each one enough to reload the editor. */
+
+/** How many sent requests are kept; the oldest go first. */
+const HISTORY_LIMIT = 100;
+
+/**
+ * A history entry for a draft just sent and what came back (a status, or the error's text).
+ * The draft is copied so later edits in the editor do not change what history recorded.
+ */
+function historyEntry(draft, outcome, sentAt) {
+  return {
+    id: sentAt + '-' + Math.random().toString(36).slice(2, 8),
+    sentAt,
+    draft: copyDraft(draft),
+    status: outcome.status ?? null,
+    error: outcome.error ?? null,
+  };
+}
+
+/** The history with this entry added at the top, trimmed to the limit. Never changes the list it is given. */
+function addToHistory(history, entry, limit = HISTORY_LIMIT) {
+  return [entry, ...(history || [])].slice(0, limit);
+}
+
+/**
+ * The history after importing entries from a file: both lists together, newest first, an entry already
+ * present (same id) kept once, trimmed to the limit.
+ */
+function mergeHistory(history, imported, limit = HISTORY_LIMIT) {
+  const byId = new Map();
+  for (const entry of [...(history || []), ...(imported || [])]) if (!byId.has(entry.id)) byId.set(entry.id, entry);
+  return [...byId.values()].sort((a, b) => b.sentAt - a.sentAt).slice(0, limit);
+}
+
+/** One line naming an entry in the sidebar: method and the address without its scheme. */
+function historyLabel(entry) {
+  const address = (entry.draft.url || '').replace(/^https?:\/\//i, '');
+  return entry.draft.method + ' ' + (address || '(no address)');
+}
+
+/** A deep copy of a draft, rows included. */
+function copyDraft(draft) {
+  return {
+    method: draft.method,
+    url: draft.url,
+    params: (draft.params || []).map(row => ({ ...row })),
+    headers: (draft.headers || []).map(row => ({ ...row })),
+    bodyMode: draft.bodyMode,
+    body: draft.body,
+  };
+}
+
+// ---- src/core/export-format.js ----
+/**
+ * The history export file: the one format Relais promises to read back, so a file exported today still
+ * imports after an upgrade. EXPORT_FIELDS is both the validator and the source of the export-format map;
+ * a field removed from it is refused by the format guard once it has shipped.
+ */
+
+/** The value of the file's "format" field; a file without it is not one of ours. */
+const EXPORT_FORMAT = 'relais-history';
+
+/** The newest version this code writes. Older versions must keep importing. */
+const EXPORT_VERSION = 1;
+
+/**
+ * Every field of the file, as [path, type]. "[]" marks the items of an array. Type is one JSON type, or
+ * several joined by "|". Additive only once released: see docs/maps/README.md.
+ */
+const EXPORT_FIELDS = [
+  ['format', 'string'],
+  ['version', 'number'],
+  ['exportedAt', 'string'],
+  ['history', 'array'],
+  ['history[].id', 'string'],
+  ['history[].sentAt', 'number'],
+  ['history[].draft', 'object'],
+  ['history[].draft.method', 'string'],
+  ['history[].draft.url', 'string'],
+  ['history[].draft.params', 'array'],
+  ['history[].draft.params[].enabled', 'boolean'],
+  ['history[].draft.params[].key', 'string'],
+  ['history[].draft.params[].value', 'string'],
+  ['history[].draft.headers', 'array'],
+  ['history[].draft.headers[].enabled', 'boolean'],
+  ['history[].draft.headers[].key', 'string'],
+  ['history[].draft.headers[].value', 'string'],
+  ['history[].draft.bodyMode', 'string'],
+  ['history[].draft.body', 'string'],
+  ['history[].status', 'number|null'],
+  ['history[].error', 'string|null'],
+];
+
+/** The text of an export file for these history entries. */
+function serializeHistory(history, exportedAt) {
+  const file = {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    exportedAt,
+    history: history.map(entry => ({
+      id: entry.id,
+      sentAt: entry.sentAt,
+      draft: {
+        method: entry.draft.method,
+        url: entry.draft.url,
+        params: entry.draft.params.map(exportRow),
+        headers: entry.draft.headers.map(exportRow),
+        bodyMode: entry.draft.bodyMode,
+        body: entry.draft.body,
+      },
+      status: entry.status,
+      error: entry.error,
+    })),
+  };
+  return JSON.stringify(file, null, 2) + '\n';
+}
+
+/**
+ * The history entries in an export file. Throws a plain-language error naming the first field that is
+ * missing or of the wrong type, or a version newer than this code knows.
+ */
+function parseExport(text) {
+  let file;
+  try {
+    file = JSON.parse(text);
+  } catch {
+    throw new Error('This file is not JSON, so it is not a Relais export.');
+  }
+  if (!file || file.format !== EXPORT_FORMAT) throw new Error('This JSON file is not a Relais history export.');
+  if (typeof file.version === 'number' && file.version > EXPORT_VERSION) {
+    throw new Error('This file was written by a newer Relais (format version ' + file.version + '). Update Relais to import it.');
+  }
+  for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
+  return file.history;
+}
+
+/** A parameter or header row as written to the file: every field present, never undefined. */
+function exportRow(row) {
+  return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
+}
+
+/** Walks one field path into the file and throws when the value at its end is not of the expected type. */
+function checkField(value, steps, type, where) {
+  if (steps.length === 0) {
+    if (!type.split('|').includes(jsonType(value))) {
+      throw new Error('The file is damaged: "' + where + '" should be ' + type.replace('|', ' or ') + '.');
+    }
+    return;
+  }
+  const [step, ...rest] = steps;
+  const isItems = step.endsWith('[]');
+  const name = isItems ? step.slice(0, -2) : step;
+  const child = value[name];
+  const here = where ? where + '.' + name : name;
+  if (!isItems) return checkField(child, rest, type, here);
+  if (!Array.isArray(child)) return;
+  child.forEach((item, index) => checkField(item, rest, type, here + '[' + index + ']'));
+}
+
+/** The JSON type of a value, with null and arrays told apart from objects. */
+function jsonType(value) {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+// ---- src/ui/store.js ----
+/**
+ * Working state kept in the browser between visits: the current draft and the history. localStorage can
+ * be missing or throw (private windows, blocked site data, file:// in some browsers), so every access is
+ * guarded and the app works without it. The durable copy is the export file, not this.
+ */
+
+/** Storage key of the draft in the editor. */
+const DRAFT_KEY = 'relais.draft.v1';
+/** Storage key of the history list. */
+const HISTORY_KEY = 'relais.history.v1';
+
+/** The saved draft, or null when there is none or storage is unavailable. */
+function loadDraft() {
+  return readJson(DRAFT_KEY);
+}
+
+/** Saves the draft; silently does nothing when storage is unavailable. */
+function saveDraft(draft) {
+  writeJson(DRAFT_KEY, draft);
+}
+
+/** The saved history, or an empty list. */
+function loadHistory() {
+  const history = readJson(HISTORY_KEY);
+  return Array.isArray(history) ? history : [];
+}
+
+/** Saves the history; silently does nothing when storage is unavailable. */
+function saveHistory(history) {
+  writeJson(HISTORY_KEY, history);
+}
+
+/** The parsed value stored under a key, or null when missing, unreadable or blocked. */
+function readJson(key) {
+  try {
+    const text = window.localStorage.getItem(key);
+    return text ? JSON.parse(text) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Stores a value as JSON under a key, ignoring a full or blocked storage. */
+function writeJson(key, value) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Storage full or blocked: the session still works, it just will not be remembered.
+  }
+}
+
+// ---- src/ui/rows-editor.js ----
+/** The key/value table used for both query parameters and headers: tick, name, value, remove. */
+
+
+/**
+ * Draws the rows of one table into its container and calls onChange with the new rows after every edit.
+ * With checkHeaders, a header name the browser will drop is marked as it is typed.
+ */
+function renderRows(container, rows, onChange, { keyPlaceholder, checkHeaders = false }) {
+  container.replaceChildren();
+  const current = rows.map(row => ({ ...row }));
+  const commit = () => onChange(current.map(row => ({ ...row })));
+
+  current.forEach((row, index) => {
+    const line = document.createElement('div');
+    line.className = 'row';
+
+    const enabled = document.createElement('input');
+    enabled.type = 'checkbox';
+    enabled.checked = row.enabled !== false;
+    enabled.title = 'Send this row';
+    enabled.addEventListener('change', () => { row.enabled = enabled.checked; commit(); });
+
+    const key = document.createElement('input');
+    key.type = 'text';
+    key.placeholder = keyPlaceholder;
+    key.value = row.key;
+    key.spellcheck = false;
+    const markForbidden = () => {
+      const forbidden = checkHeaders && isForbiddenHeader(key.value);
+      key.classList.toggle('forbidden', forbidden);
+      key.title = forbidden ? 'The browser does not let a page set this header; it will not be sent.' : '';
+    };
+    markForbidden();
+    key.addEventListener('input', () => { row.key = key.value; markForbidden(); commit(); });
+
+    const value = document.createElement('input');
+    value.type = 'text';
+    value.placeholder = 'Value';
+    value.value = row.value;
+    value.spellcheck = false;
+    value.addEventListener('input', () => { row.value = value.value; commit(); });
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'icon';
+    remove.title = 'Remove this row';
+    remove.textContent = '×';
+    remove.addEventListener('click', () => {
+      current.splice(index, 1);
+      commit();
+      renderRows(container, current, onChange, { keyPlaceholder, checkHeaders });
+    });
+
+    line.append(enabled, key, value, remove);
+    container.append(line);
+  });
+
+  const add = document.createElement('button');
+  add.type = 'button';
+  add.className = 'link';
+  add.textContent = '+ Add a row';
+  add.addEventListener('click', () => {
+    current.push({ enabled: true, key: '', value: '' });
+    commit();
+    renderRows(container, current, onChange, { keyPlaceholder, checkHeaders });
+    container.querySelectorAll('.row input[type=text]')[(current.length - 1) * 2]?.focus();
+  });
+  container.append(add);
+}
+
+// ---- src/ui/app.js ----
+/** The page: wires the editor, the send button, the response panel and the history sidebar together. */
+
+
+/** Starts the app once the page is loaded. */
+function startApp() {
+  const $ = id => document.getElementById(id);
+  let draft = loadDraft() || emptyDraft();
+  let history = loadHistory();
+  let inFlight = null;
+
+  const method = $('method');
+  for (const name of METHODS) method.append(new Option(name, name));
+
+  const changed = () => { saveDraft(draft); refreshBodyHint(); };
+
+  function showDraft() {
+    method.value = draft.method;
+    $('url').value = draft.url;
+    $('body-mode').value = draft.bodyMode;
+    $('body').value = draft.body;
+    renderRows($('params'), draft.params, rows => { draft.params = rows; changed(); }, { keyPlaceholder: 'Parameter' });
+    renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
+    refreshBodyHint();
+  }
+
+  function refreshBodyHint() {
+    $('body').hidden = draft.bodyMode === 'none';
+    $('body-hint').textContent = draft.bodyMode !== 'none' && methodTakesNoBody(draft.method)
+      ? 'A ' + draft.method + ' request carries no body: this one will not be sent.'
+      : '';
+    $('tab-params').textContent = 'Params' + countLabel(draft.params);
+    $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
+  }
+
+  method.addEventListener('change', () => { draft.method = method.value; changed(); });
+  $('url').addEventListener('input', () => { draft.url = $('url').value; changed(); });
+  $('body-mode').addEventListener('change', () => { draft.bodyMode = $('body-mode').value; changed(); });
+  $('body').addEventListener('input', () => { draft.body = $('body').value; changed(); });
+
+  setUpTabs('request-tabs');
+  setUpTabs('response-tabs');
+
+  $('request-line').addEventListener('submit', event => {
+    event.preventDefault();
+    if (inFlight) inFlight.abort();
+    else send();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) { event.preventDefault(); if (!inFlight) send(); }
+  });
+
+  async function send() {
+    let request;
+    try {
+      request = toFetchRequest(draft);
+    } catch (error) {
+      showError(error.message);
+      return;
+    }
+    $('warnings').replaceChildren(...request.warnings.map(text => paragraph(text)));
+    const sentAt = Date.now();
+    inFlight = new AbortController();
+    setSending(true);
+    const started = performance.now();
+    try {
+      const response = await fetch(request.url, { ...request.init, signal: inFlight.signal });
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      const elapsed = performance.now() - started;
+      showResponse(response, bytes, elapsed);
+      remember(sentAt, { status: response.status });
+    } catch (error) {
+      const message = explainFetchError(error, request.url, location.protocol);
+      showError(message);
+      if (error.name !== 'AbortError') remember(sentAt, { error: message });
+    } finally {
+      inFlight = null;
+      setSending(false);
+    }
+  }
+
+  function setSending(sending) {
+    $('send').textContent = sending ? 'Cancel' : 'Send';
+    $('send').classList.toggle('cancel', sending);
+    $('response').classList.toggle('loading', sending);
+  }
+
+  function showResponse(response, bytes, elapsed) {
+    $('response-empty').hidden = true;
+    $('response-error').hidden = true;
+    $('response-content').hidden = false;
+    const status = $('status');
+    status.textContent = statusLabel(response.status, response.statusText);
+    status.className = 'badge ' + statusClass(response.status);
+    $('time').textContent = formatDuration(elapsed);
+    $('size').textContent = formatBytes(bytes.byteLength);
+    const body = prettyBody(new TextDecoder().decode(bytes));
+    $('response-body').textContent = body.text || '(empty body)';
+    $('response-body').dataset.kind = body.kind;
+    const rows = [];
+    response.headers.forEach((value, name) => rows.push([name, value]));
+    $('response-headers').replaceChildren(...rows.map(([name, value]) => tableRow(name, value)));
+    $('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
+    $('headers-note').hidden = false;
+  }
+
+  function showError(message) {
+    $('response-empty').hidden = true;
+    $('response-content').hidden = true;
+    $('response-error').hidden = false;
+    $('response-error').textContent = message;
+  }
+
+  function remember(sentAt, outcome) {
+    history = addToHistory(history, historyEntry(draft, outcome, sentAt));
+    saveHistory(history);
+    showHistory();
+  }
+
+  function showHistory() {
+    const list = $('history');
+    list.replaceChildren();
+    $('history-empty').hidden = history.length > 0;
+    for (const entry of history) {
+      const item = document.createElement('li');
+      const button = document.createElement('button');
+      button.type = 'button';
+      const outcome = document.createElement('span');
+      outcome.className = 'outcome ' + (entry.status ? statusClass(entry.status) : 'failed');
+      outcome.textContent = entry.status ? String(entry.status) : 'failed';
+      const label = document.createElement('span');
+      label.className = 'label';
+      label.textContent = historyLabel(entry);
+      button.title = new Date(entry.sentAt).toLocaleString() + (entry.error ? '\n' + entry.error : '');
+      button.append(outcome, label);
+      button.addEventListener('click', () => { draft = copyDraft(entry.draft); saveDraft(draft); showDraft(); });
+      item.append(button);
+      list.append(item);
+    }
+  }
+
+  $('export').addEventListener('click', () => {
+    const text = serializeHistory(history, new Date().toISOString());
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    link.download = 'relais-history-' + new Date().toISOString().slice(0, 10) + '.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  });
+
+  $('import').addEventListener('click', () => $('import-file').click());
+  $('import-file').addEventListener('change', async () => {
+    const file = $('import-file').files[0];
+    $('import-file').value = '';
+    if (!file) return;
+    try {
+      const imported = parseExport(await file.text());
+      const before = history.length;
+      history = mergeHistory(history, imported);
+      saveHistory(history);
+      showHistory();
+      setNotice('Imported ' + (history.length - before) + ' new request(s) from ' + file.name + '.');
+    } catch (error) {
+      setNotice(error.message);
+    }
+  });
+
+  $('clear').addEventListener('click', () => {
+    if (history.length === 0) return;
+    const kept = history;
+    history = [];
+    saveHistory(history);
+    showHistory();
+    setNotice('History cleared.', () => { history = kept; saveHistory(history); showHistory(); setNotice(''); });
+  });
+
+  function setNotice(text, undo) {
+    const notice = $('notice');
+    notice.replaceChildren(text);
+    if (undo) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'link';
+      button.textContent = 'Undo';
+      button.addEventListener('click', undo);
+      notice.append(' ', button);
+    }
+  }
+
+  showDraft();
+  showHistory();
+}
+
+/** Makes the tab buttons of one tab list show their own panel and hide the others. */
+function setUpTabs(groupId) {
+  const group = document.getElementById(groupId);
+  const tabs = [...group.querySelectorAll('[role=tab]')];
+  for (const tab of tabs) {
+    tab.addEventListener('click', () => {
+      for (const other of tabs) {
+        const selected = other === tab;
+        other.setAttribute('aria-selected', String(selected));
+        document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
+      }
+    });
+  }
+}
+
+/** " (3)" for three rows that will be sent, or "" when none will. */
+function countLabel(rows) {
+  const count = rows.filter(row => row.enabled !== false && (row.key || '').trim()).length;
+  return count ? ' (' + count + ')' : '';
+}
+
+/** A <p> holding this text. */
+function paragraph(text) {
+  const p = document.createElement('p');
+  p.textContent = text;
+  return p;
+}
+
+/** A table row: the header name in a <th>, its value in a <td>. */
+function tableRow(name, value) {
+  const row = document.createElement('tr');
+  const key = document.createElement('th');
+  key.textContent = name;
+  const cell = document.createElement('td');
+  cell.textContent = value;
+  row.append(key, cell);
+  return row;
+}
+
+startApp();
+})();
+</script>
+</body>
+</html>
