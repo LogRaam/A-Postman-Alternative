@@ -24,6 +24,10 @@ read the diff, you regenerate, you commit. Whatever the code says becomes the ne
   disappear or narrow its type. The guard compares with [`export-format-released.md`](export-format-released.md),
   the format as last released, not with the committed map. Override: `ALLOW_FORMAT_FIELD_REMOVAL=1`, with the
   reason in the commit.
+- **Export format, the other direction.** A field ADDED since the release must accept `missing` (or sit under a
+  new optional field): a required new field makes every file the released version wrote fail to import, which
+  is just as breaking as a removal. `tests/fixtures/export-v0.1-0dfa0d9.json`, written by the real v0.1 code,
+  must keep importing; never regenerate it.
 - **Ratchets** (`tools/maps/ratchets.mjs`): modules in an import cycle (baseline 0) and imports from `src/core`
   into another layer (baseline 0) may not grow.
 
