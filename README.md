@@ -4,10 +4,18 @@
 [`dist/postman-alternative.html`](dist/postman-alternative.html), open it in a browser, send requests.
 
 - Method, address, query parameters, headers, and a JSON or raw-text body.
+- Authentication: a Bearer token, or Basic user name and password.
 - The response: status, time, size, headers, and the body (JSON re-indented).
-- A history of what you sent; click an entry to load it again. Export it to a JSON file and import it on another
+- Collections: save requests by name, in collections and folders (Ctrl+S), rename, remove with undo.
+- Environments: `{{baseUrl}}`, `{{token}}` resolved when the request is sent, so one saved request works against
+  development, test and production. A preview under the address shows where the request will really go.
+- A history of what you sent; click an entry to load it again.
+- Export the whole workspace (collections, environments, history) to a JSON file and import it on another
   machine or after an upgrade.
 - Ctrl+Enter sends. Light and dark themes follow your system.
+
+Everything you type, tokens and passwords included, is kept in plain text in your browser and in export files.
+Put secrets in an environment variable and do not share that environment.
 
 ## What a web page cannot do
 
