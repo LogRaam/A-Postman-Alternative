@@ -22,16 +22,17 @@ None.
 
 ## Imported by the most modules
 
+- `src/core/draft.js`: 9
 - `src/core/rows.js`: 6
-- `src/core/draft.js`: 5
+- `src/core/collections.js`: 5
+- `src/ui/page.js`: 5
+- `src/core/environments.js`: 4
 - `src/core/auth.js`: 3
+- `src/core/history.js`: 3
 - `src/core/ids.js`: 3
-- `src/core/collections.js`: 2
-- `src/core/environments.js`: 2
+- `src/core/request.js`: 3
 - `src/core/fields.js`: 2
-- `src/core/history.js`: 2
 - `src/core/names.js`: 2
-- `src/core/request.js`: 2
 - `src/core/response.js`: 2
 - `src/ui/dialogs.js`: 2
 - `src/ui/rows-editor.js`: 2
@@ -39,26 +40,40 @@ None.
 - `src/core/export-format.js`: 1
 - `src/core/url.js`: 1
 - `src/ui/auth-editor.js`: 1
+- `src/ui/collections-controller.js`: 1
 - `src/ui/collections-panel.js`: 1
+- `src/ui/editor.js`: 1
+- `src/ui/environments-controller.js`: 1
 - `src/ui/environments-dialog.js`: 1
+- `src/ui/history-controller.js`: 1
 - `src/ui/history-panel.js`: 1
 - `src/ui/response-view.js`: 1
+- `src/ui/sender.js`: 1
+- `src/ui/state.js`: 1
 - `src/ui/store.js`: 1
+- `src/ui/workspace-file.js`: 1
 
 ## Importing the most modules
 
-- `src/ui/app.js`: 17
+- `src/ui/app.js`: 8
+- `src/ui/editor.js`: 7
+- `src/ui/sender.js`: 7
+- `src/ui/collections-controller.js`: 6
+- `src/ui/workspace-file.js`: 5
 - `src/ui/environments-dialog.js`: 4
 - `src/core/draft.js`: 3
 - `src/core/environments.js`: 3
 - `src/core/export-format.js`: 3
 - `src/core/request.js`: 3
+- `src/ui/history-controller.js`: 3
+- `src/ui/state.js`: 3
 - `src/core/collections.js`: 2
 - `src/core/history.js`: 2
 - `src/ui/history-panel.js`: 2
 - `src/core/url.js`: 1
 - `src/ui/auth-editor.js`: 1
 - `src/ui/collections-panel.js`: 1
+- `src/ui/environments-controller.js`: 1
 - `src/ui/response-view.js`: 1
 - `src/ui/rows-editor.js`: 1
 
@@ -83,30 +98,53 @@ None.
 | `src/core/request.js` | `src/core/rows.js` | `enabledRows` |
 | `src/core/request.js` | `src/core/url.js` | `buildUrl` |
 | `src/core/url.js` | `src/core/rows.js` | `enabledRows` |
-| `src/ui/app.js` | `src/core/collections.js` | `addCollection`, `addFolder`, `addRequest`, `findRequest`, `mergeCollections`, `removeItem`, `renameItem`, `requestPath`, `updateRequestDraft` |
-| `src/ui/app.js` | `src/core/draft.js` | `copyDraft`, `emptyDraft`, `sameDraft` |
-| `src/ui/app.js` | `src/core/environments.js` | `mergeEnvironments`, `missingVariablesWarning`, `referencedNames`, `resolveDraft` |
-| `src/ui/app.js` | `src/core/errors.js` | `explainFetchError` |
-| `src/ui/app.js` | `src/core/export-format.js` | `parseExport`, `serializeWorkspace` |
-| `src/ui/app.js` | `src/core/history.js` | `addToHistory`, `historyEntry`, `mergeHistory` |
-| `src/ui/app.js` | `src/core/ids.js` | `makeId` |
-| `src/ui/app.js` | `src/core/request.js` | `METHODS`, `methodTakesNoBody`, `toFetchRequest` |
-| `src/ui/app.js` | `src/core/rows.js` | `enabledRows` |
-| `src/ui/app.js` | `src/ui/auth-editor.js` | `renderAuth` |
-| `src/ui/app.js` | `src/ui/collections-panel.js` | `renderCollections` |
-| `src/ui/app.js` | `src/ui/dialogs.js` | `askSaveTarget`, `askText` |
-| `src/ui/app.js` | `src/ui/environments-dialog.js` | `manageEnvironments` |
-| `src/ui/app.js` | `src/ui/history-panel.js` | `renderHistory` |
-| `src/ui/app.js` | `src/ui/response-view.js` | `setSending`, `showError`, `showResponse` |
-| `src/ui/app.js` | `src/ui/rows-editor.js` | `renderRows` |
-| `src/ui/app.js` | `src/ui/store.js` | `loadActiveEnvironmentId`, `loadCollections`, `loadDraft`, `loadEnvironments`, `loadHistory`, `loadOpenRequestId`, `saveActiveEnvironmentId`, `saveCollections`, `saveDraft`, `saveEnvironments`, `saveHistory`, `saveOpenRequestId` |
+| `src/ui/app.js` | `src/ui/collections-controller.js` | `startCollections` |
+| `src/ui/app.js` | `src/ui/editor.js` | `startEditor` |
+| `src/ui/app.js` | `src/ui/environments-controller.js` | `startEnvironments` |
+| `src/ui/app.js` | `src/ui/history-controller.js` | `startHistory` |
+| `src/ui/app.js` | `src/ui/page.js` | `setUpTabs`, `showSidebarTab` |
+| `src/ui/app.js` | `src/ui/sender.js` | `startSender` |
+| `src/ui/app.js` | `src/ui/state.js` | `createState` |
+| `src/ui/app.js` | `src/ui/workspace-file.js` | `startWorkspaceFile` |
 | `src/ui/auth-editor.js` | `src/core/auth.js` | `copyAuth` |
+| `src/ui/collections-controller.js` | `src/core/collections.js` | `addCollection`, `addFolder`, `addRequest`, `findRequest`, `removeItem`, `renameItem`, `requestPath`, `updateRequestDraft` |
+| `src/ui/collections-controller.js` | `src/core/draft.js` | `copyDraft`, `emptyDraft` |
+| `src/ui/collections-controller.js` | `src/core/ids.js` | `makeId` |
+| `src/ui/collections-controller.js` | `src/ui/collections-panel.js` | `renderCollections` |
+| `src/ui/collections-controller.js` | `src/ui/dialogs.js` | `askSaveTarget`, `askText` |
+| `src/ui/collections-controller.js` | `src/ui/page.js` | `onShortcut`, `setNotice`, `showSidebarTab` |
 | `src/ui/collections-panel.js` | `src/core/collections.js` | `requestsIn` |
+| `src/ui/editor.js` | `src/core/collections.js` | `findRequest`, `requestPath` |
+| `src/ui/editor.js` | `src/core/draft.js` | `sameDraft` |
+| `src/ui/editor.js` | `src/core/environments.js` | `missingVariablesWarning`, `referencedNames`, `resolveDraft` |
+| `src/ui/editor.js` | `src/core/request.js` | `METHODS`, `methodTakesNoBody` |
+| `src/ui/editor.js` | `src/core/rows.js` | `enabledRows` |
+| `src/ui/editor.js` | `src/ui/auth-editor.js` | `renderAuth` |
+| `src/ui/editor.js` | `src/ui/rows-editor.js` | `renderRows` |
+| `src/ui/environments-controller.js` | `src/ui/environments-dialog.js` | `manageEnvironments` |
 | `src/ui/environments-dialog.js` | `src/core/environments.js` | `addEnvironment`, `removeEnvironment`, `renameEnvironment`, `setVariables` |
 | `src/ui/environments-dialog.js` | `src/core/ids.js` | `makeId` |
 | `src/ui/environments-dialog.js` | `src/ui/dialogs.js` | `openFormDialog` |
 | `src/ui/environments-dialog.js` | `src/ui/rows-editor.js` | `renderRows` |
+| `src/ui/history-controller.js` | `src/core/draft.js` | `copyDraft` |
+| `src/ui/history-controller.js` | `src/ui/history-panel.js` | `renderHistory` |
+| `src/ui/history-controller.js` | `src/ui/page.js` | `setNotice` |
 | `src/ui/history-panel.js` | `src/core/history.js` | `historyLabel` |
 | `src/ui/history-panel.js` | `src/core/response.js` | `statusClass` |
 | `src/ui/response-view.js` | `src/core/response.js` | `formatBytes`, `formatDuration`, `prettyBody`, `statusClass`, `statusLabel` |
 | `src/ui/rows-editor.js` | `src/core/request.js` | `isForbiddenHeader` |
+| `src/ui/sender.js` | `src/core/draft.js` | `copyDraft` |
+| `src/ui/sender.js` | `src/core/environments.js` | `missingVariablesWarning`, `resolveDraft` |
+| `src/ui/sender.js` | `src/core/errors.js` | `explainFetchError` |
+| `src/ui/sender.js` | `src/core/history.js` | `addToHistory`, `historyEntry` |
+| `src/ui/sender.js` | `src/core/request.js` | `toFetchRequest` |
+| `src/ui/sender.js` | `src/ui/page.js` | `onShortcut` |
+| `src/ui/sender.js` | `src/ui/response-view.js` | `setSending`, `showError`, `showResponse` |
+| `src/ui/state.js` | `src/core/collections.js` | `findRequest` |
+| `src/ui/state.js` | `src/core/draft.js` | `copyDraft`, `emptyDraft` |
+| `src/ui/state.js` | `src/ui/store.js` | `loadSlice`, `saveSlice` |
+| `src/ui/workspace-file.js` | `src/core/collections.js` | `mergeCollections` |
+| `src/ui/workspace-file.js` | `src/core/environments.js` | `mergeEnvironments` |
+| `src/ui/workspace-file.js` | `src/core/export-format.js` | `parseExport`, `serializeWorkspace` |
+| `src/ui/workspace-file.js` | `src/core/history.js` | `mergeHistory` |
+| `src/ui/workspace-file.js` | `src/ui/page.js` | `setNotice` |

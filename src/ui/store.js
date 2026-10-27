@@ -1,86 +1,57 @@
 /**
- * Working state kept in the browser between visits: the draft, the history and the collections. localStorage can
- * be missing or throw (private windows, blocked site data, file:// in some browsers), so every access is
- * guarded and the app works without it. The durable copy is the export file, not this.
+ * Working state kept in the browser between visits, one slice per kept value. localStorage can be missing or
+ * throw (private windows, blocked site data, file:// in some browsers), so every access is guarded and the app
+ * works without it. The durable copy is the export file, not this.
  */
 
-/** Storage key of the draft in the editor. */
-const DRAFT_KEY = 'postman-alternative.draft.v1';
-/** Storage key of the history list. */
-const HISTORY_KEY = 'postman-alternative.history.v1';
-/** Storage key of the collections. */
-const COLLECTIONS_KEY = 'postman-alternative.collections.v1';
-/** Storage key of the id of the saved request open in the editor. */
-const OPEN_REQUEST_KEY = 'postman-alternative.open-request.v1';
+/**
+ * The storage key of each slice. These strings hold users' data in their browser: renaming one loses that
+ * slice silently on the next visit, so they never change (tests/store.test.mjs pins them).
+ */
+export const STORAGE_KEYS = {
+  draft: 'postman-alternative.draft.v1',
+  history: 'postman-alternative.history.v1',
+  collections: 'postman-alternative.collections.v1',
+  openRequestId: 'postman-alternative.open-request.v1',
+  environments: 'postman-alternative.environments.v1',
+  activeEnvironmentId: 'postman-alternative.active-environment.v1',
+};
 
-/** Storage key of the environments. */
-const ENVIRONMENTS_KEY = 'postman-alternative.environments.v1';
-/** Storage key of the id of the environment requests are resolved against. */
-const ACTIVE_ENVIRONMENT_KEY = 'postman-alternative.active-environment.v1';
+/** What a slice read from storage may be; anything else (absent, damaged, from a bug) becomes the fallback. */
+const SLICE_SHAPES = {
+  draft: value => (value && typeof value === 'object' && !Array.isArray(value) ? value : null),
+  history: listOrEmpty,
+  collections: listOrEmpty,
+  openRequestId: idOrNull,
+  environments: listOrEmpty,
+  activeEnvironmentId: idOrNull,
+};
 
-/** The saved environments, or an empty list. */
-export function loadEnvironments() {
-  const environments = readJson(ENVIRONMENTS_KEY);
-  return Array.isArray(environments) ? environments : [];
+/** The saved value of a slice, or its fallback: null for the draft and ids, an empty list for lists. */
+export function loadSlice(name) {
+  return sliceShape(name)(readJson(STORAGE_KEYS[name]));
 }
 
-/** Saves the environments; silently does nothing when storage is unavailable. */
-export function saveEnvironments(environments) {
-  writeJson(ENVIRONMENTS_KEY, environments);
+/** Saves one slice; silently does nothing when storage is unavailable. */
+export function saveSlice(name, value) {
+  sliceShape(name);
+  writeJson(STORAGE_KEYS[name], value);
 }
 
-/** The id of the active environment, or null for none. */
-export function loadActiveEnvironmentId() {
-  const id = readJson(ACTIVE_ENVIRONMENT_KEY);
-  return typeof id === 'string' ? id : null;
+/** The shape check of a slice; throws for a name that is not a slice, which is a bug in the caller. */
+function sliceShape(name) {
+  if (!SLICE_SHAPES[name]) throw new Error('Unknown storage slice "' + name + '".');
+  return SLICE_SHAPES[name];
 }
 
-/** Remembers the active environment (null for none). */
-export function saveActiveEnvironmentId(id) {
-  writeJson(ACTIVE_ENVIRONMENT_KEY, id);
+/** The value if it is a list, else an empty one. */
+function listOrEmpty(value) {
+  return Array.isArray(value) ? value : [];
 }
 
-/** The saved collections, or an empty list. */
-export function loadCollections() {
-  const collections = readJson(COLLECTIONS_KEY);
-  return Array.isArray(collections) ? collections : [];
-}
-
-/** Saves the collections; silently does nothing when storage is unavailable. */
-export function saveCollections(collections) {
-  writeJson(COLLECTIONS_KEY, collections);
-}
-
-/** The id of the saved request open in the editor, or null. */
-export function loadOpenRequestId() {
-  const id = readJson(OPEN_REQUEST_KEY);
-  return typeof id === 'string' ? id : null;
-}
-
-/** Remembers which saved request is open in the editor (null for none). */
-export function saveOpenRequestId(id) {
-  writeJson(OPEN_REQUEST_KEY, id);
-}
-
-/** The saved draft, or null when there is none or storage is unavailable. */
-export function loadDraft() {
-  return readJson(DRAFT_KEY);
-}
-
-/** Saves the draft; silently does nothing when storage is unavailable. */
-export function saveDraft(draft) {
-  writeJson(DRAFT_KEY, draft);
-}
-
-/** The saved history, or an empty list. */
-export function loadHistory() {
-  const history = readJson(HISTORY_KEY);
-  return Array.isArray(history) ? history : [];
-}
-
-/** Saves the history; silently does nothing when storage is unavailable. */
-export function saveHistory(history) {
-  writeJson(HISTORY_KEY, history);
+/** The value if it is an id (a string), else null. */
+function idOrNull(value) {
+  return typeof value === 'string' ? value : null;
 }
 
 /** The parsed value stored under a key, or null when missing, unreadable or blocked. */

@@ -240,29 +240,12 @@ function copyRow(row) {
   return { enabled: row.enabled !== false, key: row.key ?? '', value: row.value ?? '' };
 }
 
-// ---- src/core/url.js ----
-/** Building the URL a request is sent to, from the typed address and the query-parameter rows. */
+// ---- src/core/fields.js ----
+/** Field lists ([path, type] pairs) that describe stored data, for the export file's validator and map. */
 
-
-/**
- * Appends every enabled, named parameter row to the address, keeping any query the address already has.
- * Throws a plain-language error when the address is not an absolute http(s) URL.
- */
-function buildUrl(address, paramRows) {
-  const trimmed = (address || '').trim();
-  if (!trimmed) throw new Error('Type an address first, such as https://httpbin.org/get.');
-  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : 'https://' + trimmed;
-  let url;
-  try {
-    url = new URL(withScheme);
-  } catch {
-    throw new Error('"' + trimmed + '" is not a valid address.');
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('Only http and https addresses can be sent, not ' + url.protocol.replace(':', '') + '.');
-  }
-  for (const row of enabledRows(paramRows)) url.searchParams.append(row.key, row.value);
-  return url.toString();
+/** A field list placed under a prefix: fieldsAt('params[]', [['key', 'string']]) gives [['params[].key', 'string']]. */
+function fieldsAt(prefix, fields) {
+  return fields.map(([path, type]) => [prefix + '.' + path, type]);
 }
 
 // ---- src/core/auth.js ----
@@ -313,93 +296,6 @@ function base64Utf8(text) {
   let binary = '';
   for (const byte of new TextEncoder().encode(text)) binary += String.fromCharCode(byte);
   return btoa(binary);
-}
-
-// ---- src/core/request.js ----
-/** Turning the editor's draft into what fetch() is called with, and saying what the browser will refuse. */
-
-
-/** The methods offered in the editor, in menu order. */
-const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
-
-/** Body modes: none, JSON (validated and sent as application/json), or raw text sent as typed. */
-const BODY_MODES = ['none', 'json', 'text'];
-
-/**
- * Header names a page may not set: the browser drops them silently. Listed so the editor can say so
- * instead of letting the user believe they were sent. From the Fetch standard's forbidden request-headers.
- */
-const FORBIDDEN_HEADERS = [
-  'accept-charset', 'accept-encoding', 'access-control-request-headers', 'access-control-request-method',
-  'connection', 'content-length', 'cookie', 'cookie2', 'date', 'dnt', 'expect', 'host', 'keep-alive',
-  'origin', 'referer', 'set-cookie', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'user-agent', 'via',
-];
-
-/** True when the browser will drop this header name rather than send it. */
-function isForbiddenHeader(name) {
-  const lower = (name || '').trim().toLowerCase();
-  return FORBIDDEN_HEADERS.includes(lower) || lower.startsWith('proxy-') || lower.startsWith('sec-');
-}
-
-/** True when the method carries no body: fetch() throws if one is given. */
-function methodTakesNoBody(method) {
-  return method === 'GET' || method === 'HEAD';
-}
-
-/**
- * The URL and fetch() options for a draft, plus warnings the user should see before reading the response
- * (headers the browser drops, a body ignored by GET, an Auth tab overridden). The Auth tab becomes the
- * Authorization header unless one was typed in the Headers tab. Throws a plain-language error for a draft that cannot
- * be sent at all (bad address, invalid JSON).
- */
-function toFetchRequest(draft) {
-  const url = buildUrl(draft.url, draft.params);
-  const warnings = [];
-  const headers = [];
-  for (const row of enabledRows(draft.headers)) {
-    if (isForbiddenHeader(row.key)) warnings.push('The browser does not let a page set "' + row.key + '"; it was not sent.');
-    else headers.push([row.key, row.value]);
-  }
-
-  // A header typed by hand in the Headers tab wins over the Auth tab, and the user is told.
-  const typedByHand = hasHeader(headers, 'authorization');
-  warnings.push(...authWarnings(draft.auth, typedByHand));
-  const fromAuth = typedByHand ? null : authHeader(draft.auth);
-  if (fromAuth) headers.push(fromAuth);
-
-  let body;
-  if (draft.bodyMode !== 'none' && (draft.body || '') !== '') {
-    if (methodTakesNoBody(draft.method)) {
-      warnings.push('A ' + draft.method + ' request carries no body; the body was not sent.');
-    } else if (draft.bodyMode === 'json') {
-      try {
-        JSON.parse(draft.body);
-      } catch (error) {
-        throw new Error('The JSON body is not valid: ' + error.message);
-      }
-      body = draft.body;
-      if (!hasHeader(headers, 'content-type')) headers.push(['Content-Type', 'application/json']);
-    } else {
-      body = draft.body;
-    }
-  }
-
-  const init = { method: draft.method, headers };
-  if (body !== undefined) init.body = body;
-  return { url, init, warnings };
-}
-
-/** True when a header of this name (already lower-cased) is in the list, in any case. */
-function hasHeader(headers, lowerName) {
-  return headers.some(([name]) => name.toLowerCase() === lowerName);
-}
-
-// ---- src/core/fields.js ----
-/** Field lists ([path, type] pairs) that describe stored data, for the export file's validator and map. */
-
-/** A field list placed under a prefix: fieldsAt('params[]', [['key', 'string']]) gives [['params[].key', 'string']]. */
-function fieldsAt(prefix, fields) {
-  return fields.map(([path, type]) => [prefix + '.' + path, type]);
 }
 
 // ---- src/core/draft.js ----
@@ -453,28 +349,6 @@ function sameDraft(a, b) {
   return JSON.stringify(copyDraft(a)) === JSON.stringify(copyDraft(b));
 }
 
-// ---- src/core/errors.js ----
-/** Turning what fetch() throws into a sentence the user can act on. */
-
-/**
- * A plain explanation of a failed send. fetch() reports CORS refusals, DNS failures and refused
- * connections all as the same TypeError, and the browser hides which one it was on purpose, so the
- * message says so rather than guessing.
- */
-function explainFetchError(error, url, pageProtocol) {
-  if (error && error.name === 'AbortError') return 'Cancelled.';
-  if (pageProtocol === 'https:' && (url || '').startsWith('http:')) {
-    return 'This page is served over https, and the browser blocks requests to plain http addresses from it.';
-  }
-  if (error && error.name === 'TypeError') {
-    return 'The request did not get a response the browser will show. Either the server does not allow '
-      + 'requests from a web page (CORS: it must answer with an Access-Control-Allow-Origin header), or it '
-      + 'could not be reached (wrong address, server down, no network). The browser does not say which. '
-      + 'The developer console (F12) usually names the reason.';
-  }
-  return (error && error.message) || 'The request failed for an unknown reason.';
-}
-
 // ---- src/core/names.js ----
 /** Names the user gives to things: collections, folders, saved requests, environments. */
 
@@ -482,138 +356,6 @@ function explainFetchError(error, url, pageProtocol) {
 function cleanName(name, fallback) {
   const trimmed = (name || '').trim();
   return trimmed || fallback;
-}
-
-// ---- src/core/environments.js ----
-/**
- * Environments: named sets of variables ({{baseUrl}}, {{token}}) that the request is resolved against when
- * it is sent, so one saved request works against development, test and production alike. The request keeps
- * the {{names}}; only what is sent carries the values.
- */
-
-
-/** {{ name }}: a variable reference. Spaces inside the braces are allowed; the name itself has none. */
-const VARIABLE_REFERENCE = /\{\{\s*([^{}\s]+)\s*\}\}/g;
-
-/** The list with a new, empty environment added at the end. */
-function addEnvironment(environments, name, id) {
-  return [...environments, { id, name: cleanName(name, 'New environment'), variables: [] }];
-}
-
-/** The list with one environment renamed. A blank name keeps the old one. */
-function renameEnvironment(environments, id, name) {
-  return environments.map(e => (e.id === id ? { ...e, name: cleanName(name, e.name) } : e));
-}
-
-/** The list without one environment. */
-function removeEnvironment(environments, id) {
-  return environments.filter(e => e.id !== id);
-}
-
-/** The list with one environment's variable rows replaced. */
-function setVariables(environments, id, rows) {
-  return environments.map(e => (e.id === id ? { ...e, variables: rows.map(copyRow) } : e));
-}
-
-/** The environments after importing some from a file: an id already here is kept as it is, new ones are added. */
-function mergeEnvironments(environments, imported) {
-  return [...environments, ...(imported || []).filter(e => !environments.some(here => here.id === e.id))];
-}
-
-/** Every {{name}} a text refers to, in order of first appearance. */
-function referencedNames(text) {
-  return [...new Set([...(text || '').matchAll(VARIABLE_REFERENCE)].map(m => m[1]))];
-}
-
-/**
- * The text with each {{name}} replaced by its value. A name the variables do not define is left as typed and
- * reported in missing (a Set the caller collects across fields).
- */
-function substitute(text, values, missing) {
-  return (text || '').replace(VARIABLE_REFERENCE, (whole, name) => {
-    if (values.has(name)) return values.get(name);
-    missing.add(name);
-    return whole;
-  });
-}
-
-/**
- * The draft as it will be sent: every {{name}} in the address, parameters, headers, body and auth replaced by
- * the environment's value. Returns the resolved copy and the names no variable defines; with no environment,
- * every reference is missing. A body or auth not in use is left alone, so it reports nothing missing.
- */
-function resolveDraft(draft, environment) {
-  const values = new Map(enabledRows(environment ? environment.variables : []).map(row => [row.key, row.value]));
-  const missing = new Set();
-  const resolved = copyDraft(draft);
-  const resolveRows = rows => rows.map(row => ({ ...row, key: substitute(row.key, values, missing), value: substitute(row.value, values, missing) }));
-  resolved.url = substitute(resolved.url, values, missing);
-  resolved.params = resolveRows(resolved.params);
-  resolved.headers = resolveRows(resolved.headers);
-  if (resolved.bodyMode !== 'none') resolved.body = substitute(resolved.body, values, missing);
-  if (resolved.auth.type !== 'none') {
-    for (const field of ['token', 'username', 'password']) resolved.auth[field] = substitute(resolved.auth[field], values, missing);
-  }
-  return { draft: resolved, missing: [...missing] };
-}
-
-/** The sentence to show for names left unresolved, or '' when there are none. */
-function missingVariablesWarning(missing, environment) {
-  if (missing.length === 0) return '';
-  const names = missing.map(n => '{{' + n + '}}').join(', ');
-  return environment
-    ? names + (missing.length === 1 ? ' is' : ' are') + ' not defined in "' + environment.name + '"; sent as typed.'
-    : names + ' used, but no environment is selected; sent as typed.';
-}
-
-// ---- src/core/ids.js ----
-/** Identifiers for things the user keeps: history entries, collections, folders, saved requests. */
-
-/** A new identifier, unique enough for one person's workspace: the time, then six random characters. */
-function makeId(now = Date.now()) {
-  return now.toString(36) + '-' + Math.random().toString(36).slice(2, 8);
-}
-
-// ---- src/core/history.js ----
-/** The list of requests already sent: newest first, capped, each one enough to reload the editor. */
-
-
-/** How many sent requests are kept; the oldest go first. */
-const HISTORY_LIMIT = 100;
-
-/**
- * A history entry for a draft just sent and what came back (a status, or the error's text).
- * The draft is copied so later edits in the editor do not change what history recorded.
- */
-function historyEntry(draft, outcome, sentAt) {
-  return {
-    id: makeId(sentAt),
-    sentAt,
-    draft: copyDraft(draft),
-    status: outcome.status ?? null,
-    error: outcome.error ?? null,
-  };
-}
-
-/** The history with this entry added at the top, trimmed to the limit. Never changes the list it is given. */
-function addToHistory(history, entry, limit = HISTORY_LIMIT) {
-  return [entry, ...(history || [])].slice(0, limit);
-}
-
-/**
- * The history after importing entries from a file: both lists together, newest first, an entry already
- * present (same id) kept once, trimmed to the limit.
- */
-function mergeHistory(history, imported, limit = HISTORY_LIMIT) {
-  const byId = new Map();
-  for (const entry of [...(history || []), ...(imported || [])]) if (!byId.has(entry.id)) byId.set(entry.id, entry);
-  return [...byId.values()].sort((a, b) => b.sentAt - a.sentAt).slice(0, limit);
-}
-
-/** One line naming an entry in the sidebar: method and the address without its scheme. */
-function historyLabel(entry) {
-  const address = (entry.draft.url || '').replace(/^https?:\/\//i, '');
-  return entry.draft.method + ' ' + (address || '(no address)');
 }
 
 // ---- src/core/collections.js ----
@@ -705,212 +447,61 @@ function requestsIn(collection, folderId = null) {
   return collection.requests.filter(r => (r.folderId || null) === folderId);
 }
 
-// ---- src/core/export-format.js ----
-/**
- * The export file: the one format this app promises to read back, so a file exported today still imports
- * after an upgrade. It carries the whole workspace: history, collections and environments. EXPORT_FIELDS is both the
- * validator and the source of the export-format map; a field removed from it is refused once it has shipped.
- */
-
-
-/** The value of the file's "format" field; a file without it is not one of ours. */
-const EXPORT_FORMAT = 'postman-alternative';
-
-/** The newest version this code writes. Older versions must keep importing. */
-const EXPORT_VERSION = 1;
-
-/**
- * Every field of the file, as [path, type]. "[]" marks the items of an array. Type is one JSON type, or
- * several joined by "|". The draft's fields come from DRAFT_FIELDS, wherever a draft is stored.
- *
- * "missing" means a file may lack the field: files written before it existed must keep importing, so a field
- * added later accepts "missing" and the importer fills its default. When an optional field is absent, the
- * fields under it are not checked. Additive only once released: see docs/maps/README.md.
- */
-const EXPORT_FIELDS = [
-  ['format', 'string'],
-  ['version', 'number'],
-  ['exportedAt', 'string'],
-  ['history', 'array'],
-  ['history[].id', 'string'],
-  ['history[].sentAt', 'number'],
-  ['history[].draft', 'object'],
-  ...fieldsAt('history[].draft', DRAFT_FIELDS),
-  ['history[].status', 'number|null'],
-  ['history[].error', 'string|null'],
-  ['collections', 'array|missing'],
-  ['collections[].id', 'string'],
-  ['collections[].name', 'string'],
-  ['collections[].folders', 'array'],
-  ['collections[].folders[].id', 'string'],
-  ['collections[].folders[].name', 'string'],
-  ['collections[].requests', 'array'],
-  ['collections[].requests[].id', 'string'],
-  ['collections[].requests[].name', 'string'],
-  ['collections[].requests[].folderId', 'string|null'],
-  ['collections[].requests[].draft', 'object'],
-  ...fieldsAt('collections[].requests[].draft', DRAFT_FIELDS),
-  ['environments', 'array|missing'],
-  ['environments[].id', 'string'],
-  ['environments[].name', 'string'],
-  ['environments[].variables', 'array'],
-  ...fieldsAt('environments[].variables[]', ROW_FIELDS),
-];
-
-/** The text of an export file for this workspace. */
-function serializeWorkspace({ history, collections, environments }, exportedAt) {
-  const file = {
-    format: EXPORT_FORMAT,
-    version: EXPORT_VERSION,
-    exportedAt,
-    history: history.map(entry => ({ id: entry.id, sentAt: entry.sentAt, draft: copyDraft(entry.draft), status: entry.status, error: entry.error })),
-    collections: collections.map(c => ({
-      id: c.id,
-      name: c.name,
-      folders: c.folders.map(f => ({ id: f.id, name: f.name })),
-      requests: c.requests.map(r => ({ id: r.id, name: r.name, folderId: r.folderId ?? null, draft: copyDraft(r.draft) })),
-    })),
-    environments: environments.map(e => ({ id: e.id, name: e.name, variables: e.variables.map(copyRow) })),
-  };
-  return JSON.stringify(file, null, 2) + '\n';
-}
-
-/**
- * The workspace in an export file: { history, collections, environments }, with every field a file from an
- * earlier version lacks filled with its default. Throws a plain-language error naming the first field that is
- * missing or of the wrong type, or a version newer than this code knows.
- */
-function parseExport(text) {
-  let file;
-  try {
-    file = JSON.parse(text);
-  } catch {
-    throw new Error('This file is not JSON, so it is not an export from this app.');
-  }
-  if (!file || file.format !== EXPORT_FORMAT) throw new Error('This JSON file is not an export from A Postman Alternative.');
-  if (typeof file.version === 'number' && file.version > EXPORT_VERSION) {
-    throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
-  }
-  for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
-  return {
-    history: file.history.map(entry => ({ ...entry, draft: copyDraft(entry.draft) })),
-    collections: (file.collections || []).map(c => ({ ...c, requests: c.requests.map(r => ({ ...r, draft: copyDraft(r.draft) })) })),
-    environments: file.environments || [],
-  };
-}
-
-/** Walks one field path into the file and throws when the value at its end is not of the expected type. */
-function checkField(value, steps, type, where) {
-  if (steps.length === 0) {
-    if (!type.split('|').includes(jsonType(value))) {
-      throw new Error('The file is damaged: "' + where + '" should be ' + type.split('|').filter(t => t !== 'missing').join(' or ') + '.');
-    }
-    return;
-  }
-  // An optional field above this one is absent: it was accepted when checked, and has nothing under it to check.
-  if (value === undefined) return;
-  const [step, ...rest] = steps;
-  const isItems = step.endsWith('[]');
-  const name = isItems ? step.slice(0, -2) : step;
-  const child = value[name];
-  const here = where ? where + '.' + name : name;
-  if (!isItems) return checkField(child, rest, type, here);
-  if (!Array.isArray(child)) return;
-  child.forEach((item, index) => checkField(item, rest, type, here + '[' + index + ']'));
-}
-
-/** The JSON type of a value, with null and arrays told apart from objects, and an absent field as "missing". */
-function jsonType(value) {
-  if (value === undefined) return 'missing';
-  if (value === null) return 'null';
-  if (Array.isArray(value)) return 'array';
-  return typeof value;
-}
-
 // ---- src/ui/store.js ----
 /**
- * Working state kept in the browser between visits: the draft, the history and the collections. localStorage can
- * be missing or throw (private windows, blocked site data, file:// in some browsers), so every access is
- * guarded and the app works without it. The durable copy is the export file, not this.
+ * Working state kept in the browser between visits, one slice per kept value. localStorage can be missing or
+ * throw (private windows, blocked site data, file:// in some browsers), so every access is guarded and the app
+ * works without it. The durable copy is the export file, not this.
  */
 
-/** Storage key of the draft in the editor. */
-const DRAFT_KEY = 'postman-alternative.draft.v1';
-/** Storage key of the history list. */
-const HISTORY_KEY = 'postman-alternative.history.v1';
-/** Storage key of the collections. */
-const COLLECTIONS_KEY = 'postman-alternative.collections.v1';
-/** Storage key of the id of the saved request open in the editor. */
-const OPEN_REQUEST_KEY = 'postman-alternative.open-request.v1';
+/**
+ * The storage key of each slice. These strings hold users' data in their browser: renaming one loses that
+ * slice silently on the next visit, so they never change (tests/store.test.mjs pins them).
+ */
+const STORAGE_KEYS = {
+  draft: 'postman-alternative.draft.v1',
+  history: 'postman-alternative.history.v1',
+  collections: 'postman-alternative.collections.v1',
+  openRequestId: 'postman-alternative.open-request.v1',
+  environments: 'postman-alternative.environments.v1',
+  activeEnvironmentId: 'postman-alternative.active-environment.v1',
+};
 
-/** Storage key of the environments. */
-const ENVIRONMENTS_KEY = 'postman-alternative.environments.v1';
-/** Storage key of the id of the environment requests are resolved against. */
-const ACTIVE_ENVIRONMENT_KEY = 'postman-alternative.active-environment.v1';
+/** What a slice read from storage may be; anything else (absent, damaged, from a bug) becomes the fallback. */
+const SLICE_SHAPES = {
+  draft: value => (value && typeof value === 'object' && !Array.isArray(value) ? value : null),
+  history: listOrEmpty,
+  collections: listOrEmpty,
+  openRequestId: idOrNull,
+  environments: listOrEmpty,
+  activeEnvironmentId: idOrNull,
+};
 
-/** The saved environments, or an empty list. */
-function loadEnvironments() {
-  const environments = readJson(ENVIRONMENTS_KEY);
-  return Array.isArray(environments) ? environments : [];
+/** The saved value of a slice, or its fallback: null for the draft and ids, an empty list for lists. */
+function loadSlice(name) {
+  return sliceShape(name)(readJson(STORAGE_KEYS[name]));
 }
 
-/** Saves the environments; silently does nothing when storage is unavailable. */
-function saveEnvironments(environments) {
-  writeJson(ENVIRONMENTS_KEY, environments);
+/** Saves one slice; silently does nothing when storage is unavailable. */
+function saveSlice(name, value) {
+  sliceShape(name);
+  writeJson(STORAGE_KEYS[name], value);
 }
 
-/** The id of the active environment, or null for none. */
-function loadActiveEnvironmentId() {
-  const id = readJson(ACTIVE_ENVIRONMENT_KEY);
-  return typeof id === 'string' ? id : null;
+/** The shape check of a slice; throws for a name that is not a slice, which is a bug in the caller. */
+function sliceShape(name) {
+  if (!SLICE_SHAPES[name]) throw new Error('Unknown storage slice "' + name + '".');
+  return SLICE_SHAPES[name];
 }
 
-/** Remembers the active environment (null for none). */
-function saveActiveEnvironmentId(id) {
-  writeJson(ACTIVE_ENVIRONMENT_KEY, id);
+/** The value if it is a list, else an empty one. */
+function listOrEmpty(value) {
+  return Array.isArray(value) ? value : [];
 }
 
-/** The saved collections, or an empty list. */
-function loadCollections() {
-  const collections = readJson(COLLECTIONS_KEY);
-  return Array.isArray(collections) ? collections : [];
-}
-
-/** Saves the collections; silently does nothing when storage is unavailable. */
-function saveCollections(collections) {
-  writeJson(COLLECTIONS_KEY, collections);
-}
-
-/** The id of the saved request open in the editor, or null. */
-function loadOpenRequestId() {
-  const id = readJson(OPEN_REQUEST_KEY);
-  return typeof id === 'string' ? id : null;
-}
-
-/** Remembers which saved request is open in the editor (null for none). */
-function saveOpenRequestId(id) {
-  writeJson(OPEN_REQUEST_KEY, id);
-}
-
-/** The saved draft, or null when there is none or storage is unavailable. */
-function loadDraft() {
-  return readJson(DRAFT_KEY);
-}
-
-/** Saves the draft; silently does nothing when storage is unavailable. */
-function saveDraft(draft) {
-  writeJson(DRAFT_KEY, draft);
-}
-
-/** The saved history, or an empty list. */
-function loadHistory() {
-  const history = readJson(HISTORY_KEY);
-  return Array.isArray(history) ? history : [];
-}
-
-/** Saves the history; silently does nothing when storage is unavailable. */
-function saveHistory(history) {
-  writeJson(HISTORY_KEY, history);
+/** The value if it is an id (a string), else null. */
+function idOrNull(value) {
+  return typeof value === 'string' ? value : null;
 }
 
 /** The parsed value stored under a key, or null when missing, unreadable or blocked. */
@@ -930,6 +521,297 @@ function writeJson(key, value) {
   } catch {
     // Storage full or blocked: the session still works, it just will not be remembered.
   }
+}
+
+// ---- src/ui/state.js ----
+/**
+ * The app's state: every value the page shows and keeps, in one place. A change goes through set(), which
+ * saves the slices that changed and tells every controller, so no controller holds its own copy.
+ */
+
+
+/**
+ * The state as last saved. get(name) reads a slice; set(changes, origin) replaces slices, saves them and calls
+ * every onChange listener with (the set of changed names, origin), origin naming the controller that made the
+ * change so it can skip redrawing what the user is typing in.
+ */
+function createState() {
+  const values = {
+    draft: copyDraft(loadSlice('draft') || emptyDraft()),
+    history: loadSlice('history'),
+    collections: loadSlice('collections'),
+    openRequestId: loadSlice('openRequestId'),
+    environments: loadSlice('environments'),
+    activeEnvironmentId: loadSlice('activeEnvironmentId'),
+  };
+  keepLinksValid(values);
+  const listeners = [];
+  return {
+    get: name => values[name],
+    set(changes, origin = null) {
+      Object.assign(values, changes);
+      const changed = new Set([...Object.keys(changes), ...keepLinksValid(values)]);
+      for (const name of changed) saveSlice(name, values[name]);
+      for (const listener of listeners) listener(changed, origin);
+    },
+    onChange(listener) {
+      listeners.push(listener);
+    },
+    /** The environment requests are resolved against, or null. */
+    activeEnvironment: () => values.environments.find(e => e.id === values.activeEnvironmentId) || null,
+  };
+}
+
+/**
+ * Clears a link to something that no longer exists: the open request once its collection entry is removed,
+ * the active environment once it is deleted. Returns the names it cleared.
+ */
+function keepLinksValid(values) {
+  const cleared = [];
+  if (values.openRequestId && !findRequest(values.collections, values.openRequestId)) {
+    values.openRequestId = null;
+    cleared.push('openRequestId');
+  }
+  if (values.activeEnvironmentId && !values.environments.some(e => e.id === values.activeEnvironmentId)) {
+    values.activeEnvironmentId = null;
+    cleared.push('activeEnvironmentId');
+  }
+  return cleared;
+}
+
+// ---- src/ui/page.js ----
+/** Small page-wide helpers shared by the controllers: tabs, keyboard shortcuts, the notice line. */
+
+/** Makes the tab buttons of one tab list show their own panel and hide the others. */
+function setUpTabs(groupId) {
+  const tabs = [...document.getElementById(groupId).querySelectorAll('[role=tab]')];
+  for (const tab of tabs) tab.addEventListener('click', () => selectTab(tabs, tab));
+}
+
+/** Shows one of the sidebar's tabs by its button id. */
+function showSidebarTab(tabId) {
+  selectTab([...document.querySelectorAll('#sidebar-tabs [role=tab]')], document.getElementById(tabId));
+}
+
+/**
+ * Calls handler(event) on Ctrl (or Cmd) + key, unless a dialog is open. key is compared without case, so
+ * Ctrl+Shift+S reaches the "s" handler with event.shiftKey set.
+ */
+function onShortcut(key, handler) {
+  document.addEventListener('keydown', event => {
+    if (!(event.ctrlKey || event.metaKey) || document.getElementById('dialog').open) return;
+    if (event.key.toLowerCase() !== key.toLowerCase()) return;
+    event.preventDefault();
+    handler(event);
+  });
+}
+
+/** Shows a one-line notice under the sidebar's tools, with an Undo button when undo is given. */
+function setNotice(text, undo) {
+  const notice = document.getElementById('notice');
+  notice.replaceChildren(text);
+  if (!undo) return;
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'link';
+  button.textContent = 'Undo';
+  button.addEventListener('click', () => { undo(); setNotice(''); });
+  notice.append(' ', button);
+}
+
+/** Selects one tab of its list and shows its panel. */
+function selectTab(tabs, tab) {
+  for (const other of tabs) {
+    const selected = other === tab;
+    other.setAttribute('aria-selected', String(selected));
+    document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
+  }
+}
+
+// ---- src/core/url.js ----
+/** Building the URL a request is sent to, from the typed address and the query-parameter rows. */
+
+
+/**
+ * Appends every enabled, named parameter row to the address, keeping any query the address already has.
+ * Throws a plain-language error when the address is not an absolute http(s) URL.
+ */
+function buildUrl(address, paramRows) {
+  const trimmed = (address || '').trim();
+  if (!trimmed) throw new Error('Type an address first, such as https://httpbin.org/get.');
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) ? trimmed : 'https://' + trimmed;
+  let url;
+  try {
+    url = new URL(withScheme);
+  } catch {
+    throw new Error('"' + trimmed + '" is not a valid address.');
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error('Only http and https addresses can be sent, not ' + url.protocol.replace(':', '') + '.');
+  }
+  for (const row of enabledRows(paramRows)) url.searchParams.append(row.key, row.value);
+  return url.toString();
+}
+
+// ---- src/core/request.js ----
+/** Turning the editor's draft into what fetch() is called with, and saying what the browser will refuse. */
+
+
+/** The methods offered in the editor, in menu order. */
+const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
+
+/** Body modes: none, JSON (validated and sent as application/json), or raw text sent as typed. */
+const BODY_MODES = ['none', 'json', 'text'];
+
+/**
+ * Header names a page may not set: the browser drops them silently. Listed so the editor can say so
+ * instead of letting the user believe they were sent. From the Fetch standard's forbidden request-headers.
+ */
+const FORBIDDEN_HEADERS = [
+  'accept-charset', 'accept-encoding', 'access-control-request-headers', 'access-control-request-method',
+  'connection', 'content-length', 'cookie', 'cookie2', 'date', 'dnt', 'expect', 'host', 'keep-alive',
+  'origin', 'referer', 'set-cookie', 'te', 'trailer', 'transfer-encoding', 'upgrade', 'user-agent', 'via',
+];
+
+/** True when the browser will drop this header name rather than send it. */
+function isForbiddenHeader(name) {
+  const lower = (name || '').trim().toLowerCase();
+  return FORBIDDEN_HEADERS.includes(lower) || lower.startsWith('proxy-') || lower.startsWith('sec-');
+}
+
+/** True when the method carries no body: fetch() throws if one is given. */
+function methodTakesNoBody(method) {
+  return method === 'GET' || method === 'HEAD';
+}
+
+/**
+ * The URL and fetch() options for a draft, plus warnings the user should see before reading the response
+ * (headers the browser drops, a body ignored by GET, an Auth tab overridden). The Auth tab becomes the
+ * Authorization header unless one was typed in the Headers tab. Throws a plain-language error for a draft that cannot
+ * be sent at all (bad address, invalid JSON).
+ */
+function toFetchRequest(draft) {
+  const url = buildUrl(draft.url, draft.params);
+  const warnings = [];
+  const headers = [];
+  for (const row of enabledRows(draft.headers)) {
+    if (isForbiddenHeader(row.key)) warnings.push('The browser does not let a page set "' + row.key + '"; it was not sent.');
+    else headers.push([row.key, row.value]);
+  }
+
+  // A header typed by hand in the Headers tab wins over the Auth tab, and the user is told.
+  const typedByHand = hasHeader(headers, 'authorization');
+  warnings.push(...authWarnings(draft.auth, typedByHand));
+  const fromAuth = typedByHand ? null : authHeader(draft.auth);
+  if (fromAuth) headers.push(fromAuth);
+
+  let body;
+  if (draft.bodyMode !== 'none' && (draft.body || '') !== '') {
+    if (methodTakesNoBody(draft.method)) {
+      warnings.push('A ' + draft.method + ' request carries no body; the body was not sent.');
+    } else if (draft.bodyMode === 'json') {
+      try {
+        JSON.parse(draft.body);
+      } catch (error) {
+        throw new Error('The JSON body is not valid: ' + error.message);
+      }
+      body = draft.body;
+      if (!hasHeader(headers, 'content-type')) headers.push(['Content-Type', 'application/json']);
+    } else {
+      body = draft.body;
+    }
+  }
+
+  const init = { method: draft.method, headers };
+  if (body !== undefined) init.body = body;
+  return { url, init, warnings };
+}
+
+/** True when a header of this name (already lower-cased) is in the list, in any case. */
+function hasHeader(headers, lowerName) {
+  return headers.some(([name]) => name.toLowerCase() === lowerName);
+}
+
+// ---- src/core/environments.js ----
+/**
+ * Environments: named sets of variables ({{baseUrl}}, {{token}}) that the request is resolved against when
+ * it is sent, so one saved request works against development, test and production alike. The request keeps
+ * the {{names}}; only what is sent carries the values.
+ */
+
+
+/** {{ name }}: a variable reference. Spaces inside the braces are allowed; the name itself has none. */
+const VARIABLE_REFERENCE = /\{\{\s*([^{}\s]+)\s*\}\}/g;
+
+/** The list with a new, empty environment added at the end. */
+function addEnvironment(environments, name, id) {
+  return [...environments, { id, name: cleanName(name, 'New environment'), variables: [] }];
+}
+
+/** The list with one environment renamed. A blank name keeps the old one. */
+function renameEnvironment(environments, id, name) {
+  return environments.map(e => (e.id === id ? { ...e, name: cleanName(name, e.name) } : e));
+}
+
+/** The list without one environment. */
+function removeEnvironment(environments, id) {
+  return environments.filter(e => e.id !== id);
+}
+
+/** The list with one environment's variable rows replaced. */
+function setVariables(environments, id, rows) {
+  return environments.map(e => (e.id === id ? { ...e, variables: rows.map(copyRow) } : e));
+}
+
+/** The environments after importing some from a file: an id already here is kept as it is, new ones are added. */
+function mergeEnvironments(environments, imported) {
+  return [...environments, ...(imported || []).filter(e => !environments.some(here => here.id === e.id))];
+}
+
+/** Every {{name}} a text refers to, in order of first appearance. */
+function referencedNames(text) {
+  return [...new Set([...(text || '').matchAll(VARIABLE_REFERENCE)].map(m => m[1]))];
+}
+
+/**
+ * The text with each {{name}} replaced by its value. A name the variables do not define is left as typed and
+ * reported in missing (a Set the caller collects across fields).
+ */
+function substitute(text, values, missing) {
+  return (text || '').replace(VARIABLE_REFERENCE, (whole, name) => {
+    if (values.has(name)) return values.get(name);
+    missing.add(name);
+    return whole;
+  });
+}
+
+/**
+ * The draft as it will be sent: every {{name}} in the address, parameters, headers, body and auth replaced by
+ * the environment's value. Returns the resolved copy and the names no variable defines; with no environment,
+ * every reference is missing. A body or auth not in use is left alone, so it reports nothing missing.
+ */
+function resolveDraft(draft, environment) {
+  const values = new Map(enabledRows(environment ? environment.variables : []).map(row => [row.key, row.value]));
+  const missing = new Set();
+  const resolved = copyDraft(draft);
+  const resolveRows = rows => rows.map(row => ({ ...row, key: substitute(row.key, values, missing), value: substitute(row.value, values, missing) }));
+  resolved.url = substitute(resolved.url, values, missing);
+  resolved.params = resolveRows(resolved.params);
+  resolved.headers = resolveRows(resolved.headers);
+  if (resolved.bodyMode !== 'none') resolved.body = substitute(resolved.body, values, missing);
+  if (resolved.auth.type !== 'none') {
+    for (const field of ['token', 'username', 'password']) resolved.auth[field] = substitute(resolved.auth[field], values, missing);
+  }
+  return { draft: resolved, missing: [...missing] };
+}
+
+/** The sentence to show for names left unresolved, or '' when there are none. */
+function missingVariablesWarning(missing, environment) {
+  if (missing.length === 0) return '';
+  const names = missing.map(n => '{{' + n + '}}').join(', ');
+  return environment
+    ? names + (missing.length === 1 ? ' is' : ' are') + ' not defined in "' + environment.name + '"; sent as typed.'
+    : names + ' used, but no environment is selected; sent as typed.';
 }
 
 // ---- src/ui/rows-editor.js ----
@@ -1003,6 +885,197 @@ function renderRows(container, rows, onChange, { keyPlaceholder, checkHeaders = 
   container.append(add);
 }
 
+// ---- src/ui/auth-editor.js ----
+/** The Auth tab of the editor: no authentication, a Bearer token, or Basic user name and password. */
+
+
+const AUTH_LABELS = { none: 'No authentication', bearer: 'Bearer token', basic: 'Basic (user name and password)' };
+
+/** Draws the auth settings into the container and calls onChange with new settings after every edit. */
+function renderAuth(container, auth, onChange) {
+  const current = copyAuth(auth);
+  container.replaceChildren();
+
+  const type = document.createElement('select');
+  type.setAttribute('aria-label', 'Authentication type');
+  for (const [value, label] of Object.entries(AUTH_LABELS)) type.append(new Option(label, value));
+  type.value = current.type;
+  type.addEventListener('change', () => {
+    current.type = type.value;
+    onChange(copyAuth(current));
+    renderAuth(container, current, onChange);
+  });
+  container.append(type);
+
+  const input = (label, field, inputType) => {
+    const wrap = document.createElement('label');
+    wrap.className = 'auth-field';
+    const caption = document.createElement('span');
+    caption.textContent = label;
+    const box = document.createElement('input');
+    box.type = inputType;
+    box.spellcheck = false;
+    box.autocomplete = 'off';
+    box.value = current[field];
+    box.placeholder = 'Text, or a {{variable}}';
+    box.addEventListener('input', () => { current[field] = box.value; onChange(copyAuth(current)); });
+    wrap.append(caption, box);
+    container.append(wrap);
+  };
+  if (current.type === 'bearer') input('Token', 'token', 'text');
+  if (current.type === 'basic') { input('User name', 'username', 'text'); input('Password', 'password', 'password'); }
+
+  if (current.type !== 'none') {
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = 'Sent as the Authorization header. Kept in plain text in this browser and in exports: '
+      + 'put secrets in an environment variable ({{token}}) and do not share that environment.';
+    container.append(note);
+  }
+}
+
+// ---- src/ui/editor.js ----
+/** The request editor: method, address, parameters, headers, auth, body, and the lines that describe them. */
+
+
+/** Wires the editor to the state: what the user types updates the draft; a draft loaded from elsewhere is shown. */
+function startEditor(state) {
+  const $ = id => document.getElementById(id);
+  const method = $('method');
+  for (const name of METHODS) method.append(new Option(name, name));
+
+  // Typing changes the draft with origin "editor", so the fields being typed in are not redrawn under the cursor.
+  const edit = changes => state.set({ draft: { ...state.get('draft'), ...changes } }, 'editor');
+
+  method.addEventListener('change', () => edit({ method: method.value }));
+  $('url').addEventListener('input', () => edit({ url: $('url').value }));
+  $('body-mode').addEventListener('change', () => edit({ bodyMode: $('body-mode').value }));
+  $('body').addEventListener('input', () => edit({ body: $('body').value }));
+
+  function showDraft() {
+    const draft = state.get('draft');
+    method.value = draft.method;
+    $('url').value = draft.url;
+    $('body-mode').value = draft.bodyMode;
+    $('body').value = draft.body;
+    renderRows($('params'), draft.params, rows => edit({ params: rows }), { keyPlaceholder: 'Parameter' });
+    renderRows($('headers'), draft.headers, rows => edit({ headers: rows }), { keyPlaceholder: 'Header', checkHeaders: true });
+    renderAuth($('auth'), draft.auth, auth => edit({ auth }));
+    refresh();
+  }
+
+  /** Everything around the fields that depends on the draft, the open request or the environment. */
+  function refresh() {
+    const draft = state.get('draft');
+    $('body').hidden = draft.bodyMode === 'none';
+    $('body-hint').textContent = draft.bodyMode !== 'none' && methodTakesNoBody(draft.method)
+      ? 'A ' + draft.method + ' request carries no body: this one will not be sent.'
+      : '';
+    $('tab-params').textContent = 'Params' + countLabel(draft.params);
+    $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
+    $('tab-auth').textContent = draft.auth.type === 'none' ? 'Auth' : 'Auth (' + draft.auth.type + ')';
+
+    // The line above the editor: which saved request is open, and whether the editor differs from it.
+    const collections = state.get('collections');
+    const found = state.get('openRequestId') && findRequest(collections, state.get('openRequestId'));
+    $('request-title').textContent = found ? requestPath(collections, found.request.id) : 'Unsaved request';
+    $('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
+    $('save-as').hidden = !found;
+
+    // Under the address: where the request will really go, when the address uses {{variables}}.
+    const preview = $('resolved-url');
+    if (referencedNames(draft.url).length === 0) { preview.hidden = true; return; }
+    const { draft: resolved, missing } = resolveDraft(draft, state.activeEnvironment());
+    preview.hidden = false;
+    preview.textContent = 'Sends to ' + resolved.url + (missing.length ? '   (' + missingVariablesWarning(missing, state.activeEnvironment()) + ')' : '');
+    preview.classList.toggle('missing', missing.length > 0);
+  }
+
+  state.onChange((changed, origin) => {
+    if (changed.has('draft') && origin !== 'editor') showDraft();
+    else refresh();
+  });
+  showDraft();
+}
+
+/** " (3)" for three rows that will be sent, or "" when none will. */
+function countLabel(rows) {
+  const count = enabledRows(rows).length;
+  return count ? ' (' + count + ')' : '';
+}
+
+// ---- src/core/errors.js ----
+/** Turning what fetch() throws into a sentence the user can act on. */
+
+/**
+ * A plain explanation of a failed send. fetch() reports CORS refusals, DNS failures and refused
+ * connections all as the same TypeError, and the browser hides which one it was on purpose, so the
+ * message says so rather than guessing.
+ */
+function explainFetchError(error, url, pageProtocol) {
+  if (error && error.name === 'AbortError') return 'Cancelled.';
+  if (pageProtocol === 'https:' && (url || '').startsWith('http:')) {
+    return 'This page is served over https, and the browser blocks requests to plain http addresses from it.';
+  }
+  if (error && error.name === 'TypeError') {
+    return 'The request did not get a response the browser will show. Either the server does not allow '
+      + 'requests from a web page (CORS: it must answer with an Access-Control-Allow-Origin header), or it '
+      + 'could not be reached (wrong address, server down, no network). The browser does not say which. '
+      + 'The developer console (F12) usually names the reason.';
+  }
+  return (error && error.message) || 'The request failed for an unknown reason.';
+}
+
+// ---- src/core/ids.js ----
+/** Identifiers for things the user keeps: history entries, collections, folders, saved requests. */
+
+/** A new identifier, unique enough for one person's workspace: the time, then six random characters. */
+function makeId(now = Date.now()) {
+  return now.toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+
+// ---- src/core/history.js ----
+/** The list of requests already sent: newest first, capped, each one enough to reload the editor. */
+
+
+/** How many sent requests are kept; the oldest go first. */
+const HISTORY_LIMIT = 100;
+
+/**
+ * A history entry for a draft just sent and what came back (a status, or the error's text).
+ * The draft is copied so later edits in the editor do not change what history recorded.
+ */
+function historyEntry(draft, outcome, sentAt) {
+  return {
+    id: makeId(sentAt),
+    sentAt,
+    draft: copyDraft(draft),
+    status: outcome.status ?? null,
+    error: outcome.error ?? null,
+  };
+}
+
+/** The history with this entry added at the top, trimmed to the limit. Never changes the list it is given. */
+function addToHistory(history, entry, limit = HISTORY_LIMIT) {
+  return [entry, ...(history || [])].slice(0, limit);
+}
+
+/**
+ * The history after importing entries from a file: both lists together, newest first, an entry already
+ * present (same id) kept once, trimmed to the limit.
+ */
+function mergeHistory(history, imported, limit = HISTORY_LIMIT) {
+  const byId = new Map();
+  for (const entry of [...(history || []), ...(imported || [])]) if (!byId.has(entry.id)) byId.set(entry.id, entry);
+  return [...byId.values()].sort((a, b) => b.sentAt - a.sentAt).slice(0, limit);
+}
+
+/** One line naming an entry in the sidebar: method and the address without its scheme. */
+function historyLabel(entry) {
+  const address = (entry.draft.url || '').replace(/^https?:\/\//i, '');
+  return entry.draft.method + ' ' + (address || '(no address)');
+}
+
 // ---- src/core/response.js ----
 /** Describing a response for the reader: status wording, size, duration, and a readable body. */
 
@@ -1058,6 +1131,119 @@ const REASONS = {
   500: 'Internal Server Error', 502: 'Bad Gateway', 503: 'Service Unavailable', 504: 'Gateway Timeout',
 };
 
+// ---- src/ui/response-view.js ----
+/** The response panel: status, time, size, body and headers of the last response, or why there is none. */
+
+
+/** Shows a response that came back: its bytes are the body as received, elapsed the time in milliseconds. */
+function showResponse(response, bytes, elapsed) {
+  const $ = id => document.getElementById(id);
+  $('response-empty').hidden = true;
+  $('response-error').hidden = true;
+  $('response-content').hidden = false;
+  const status = $('status');
+  status.textContent = statusLabel(response.status, response.statusText);
+  status.className = 'badge ' + statusClass(response.status);
+  $('time').textContent = formatDuration(elapsed);
+  $('size').textContent = formatBytes(bytes.byteLength);
+  const body = prettyBody(new TextDecoder().decode(bytes));
+  $('response-body').textContent = body.text || '(empty body)';
+  $('response-body').dataset.kind = body.kind;
+  const rows = [];
+  response.headers.forEach((value, name) => rows.push([name, value]));
+  $('response-headers').replaceChildren(...rows.map(([name, value]) => headerRow(name, value)));
+  $('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
+  $('headers-note').hidden = false;
+}
+
+/** Shows why there is no response: a request that could not be sent, or a send that failed. */
+function showError(message) {
+  const $ = id => document.getElementById(id);
+  $('response-empty').hidden = true;
+  $('response-content').hidden = true;
+  $('response-error').hidden = false;
+  $('response-error').textContent = message;
+}
+
+/** Turns Send into Cancel while a request is in flight, and dims the last response. */
+function setSending(sending) {
+  const send = document.getElementById('send');
+  send.textContent = sending ? 'Cancel' : 'Send';
+  send.classList.toggle('cancel', sending);
+  document.getElementById('response').classList.toggle('loading', sending);
+}
+
+/** A table row: the header name in a <th>, its value in a <td>. */
+function headerRow(name, value) {
+  const row = document.createElement('tr');
+  const key = document.createElement('th');
+  key.textContent = name;
+  const cell = document.createElement('td');
+  cell.textContent = value;
+  row.append(key, cell);
+  return row;
+}
+
+// ---- src/ui/sender.js ----
+/** Sending: Send and Cancel, Ctrl+Enter, the warnings above the response, and the history entry it leaves. */
+
+
+/** Wires the Send button and Ctrl+Enter to the state's draft and active environment. */
+function startSender(state) {
+  let inFlight = null;
+
+  document.getElementById('request-line').addEventListener('submit', event => {
+    event.preventDefault();
+    if (inFlight) inFlight.abort();
+    else send();
+  });
+  onShortcut('Enter', () => { if (!inFlight) send(); });
+
+  async function send() {
+    // The draft as it is when Send is pressed: the user may edit the editor while a slow request is in flight.
+    const sent = copyDraft(state.get('draft'));
+    // The editor keeps the {{names}}; only what is sent carries the environment's values.
+    const resolved = resolveDraft(sent, state.activeEnvironment());
+    let request;
+    try {
+      request = toFetchRequest(resolved.draft);
+    } catch (error) {
+      showError(error.message);
+      return;
+    }
+    const warnings = [missingVariablesWarning(resolved.missing, state.activeEnvironment()), ...request.warnings].filter(Boolean);
+    document.getElementById('warnings').replaceChildren(...warnings.map(paragraph));
+    const sentAt = Date.now();
+    inFlight = new AbortController();
+    setSending(true);
+    const started = performance.now();
+    try {
+      const response = await fetch(request.url, { ...request.init, signal: inFlight.signal });
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      showResponse(response, bytes, performance.now() - started);
+      remember(sent, sentAt, { status: response.status });
+    } catch (error) {
+      const message = explainFetchError(error, request.url, location.protocol);
+      showError(message);
+      if (error.name !== 'AbortError') remember(sent, sentAt, { error: message });
+    } finally {
+      inFlight = null;
+      setSending(false);
+    }
+  }
+
+  function remember(sent, sentAt, outcome) {
+    state.set({ history: addToHistory(state.get('history'), historyEntry(sent, outcome, sentAt)) });
+  }
+}
+
+/** A <p> holding this text. */
+function paragraph(text) {
+  const p = document.createElement('p');
+  p.textContent = text;
+  return p;
+}
+
 // ---- src/ui/history-panel.js ----
 /** The History tab of the sidebar: every request sent, newest first, each one reloadable. */
 
@@ -1082,6 +1268,27 @@ function renderHistory(list, emptyNote, history, onOpen) {
     item.append(button);
     list.append(item);
   }
+}
+
+// ---- src/ui/history-controller.js ----
+/** The History tab's behaviour: open an entry in the editor, clear the list with undo. */
+
+
+/** Draws the history whenever it changes and wires its Clear button. */
+function startHistory(state) {
+  const $ = id => document.getElementById(id);
+  const show = () => renderHistory($('history'), $('history-empty'), state.get('history'),
+    entry => state.set({ draft: copyDraft(entry.draft), openRequestId: null }));
+
+  $('clear').addEventListener('click', () => {
+    const kept = state.get('history');
+    if (kept.length === 0) return;
+    state.set({ history: [] });
+    setNotice('History cleared.', () => state.set({ history: kept }));
+  });
+
+  state.onChange(changed => { if (changed.has('history')) show(); });
+  show();
 }
 
 // ---- src/ui/collections-panel.js ----
@@ -1281,6 +1488,75 @@ function field(form, labelText, kind) {
   return control;
 }
 
+// ---- src/ui/collections-controller.js ----
+/** Saved requests: Save and Save as, New, opening, renaming and removing, and the Collections tab. */
+
+
+/** Wires saving and the Collections tab to the state. */
+function startCollections(state) {
+  const $ = id => document.getElementById(id);
+  const collections = () => state.get('collections');
+
+  const show = () => renderCollections($('collections'), collections(), state.get('openRequestId'), {
+    open: id => state.set({ draft: copyDraft(findRequest(collections(), id).request.draft), openRequestId: id }),
+    addFolder: async collectionId => {
+      const name = await askText({ title: 'New folder', label: 'Folder name', confirm: 'Add' });
+      if (name) state.set({ collections: addFolder(collections(), collectionId, name, makeId()) });
+    },
+    rename: async (id, current) => {
+      const name = await askText({ title: 'Rename', label: 'New name', initial: current, confirm: 'Rename' });
+      if (name) state.set({ collections: renameItem(collections(), id, name) });
+    },
+    remove: (id, label) => {
+      const kept = { collections: collections(), openRequestId: state.get('openRequestId') };
+      state.set({ collections: removeItem(collections(), id) });
+      setNotice('Removed ' + label + '.', () => state.set(kept));
+    },
+  });
+
+  /** Save: updates the open saved request, or asks where to save a new one. asNew forces the question. */
+  async function save(asNew) {
+    const draft = state.get('draft');
+    const openId = state.get('openRequestId');
+    if (openId && !asNew) {
+      state.set({ collections: updateRequestDraft(collections(), openId, draft) });
+      setNotice('Saved.');
+      return;
+    }
+    const target = await askSaveTarget(collections(), suggestName(draft));
+    if (!target) return;
+    let next = collections();
+    let collectionId = target.collectionId;
+    if (!collectionId) {
+      collectionId = makeId();
+      next = addCollection(next, target.newCollectionName, collectionId);
+    }
+    const id = makeId();
+    next = addRequest(next, { collectionId, folderId: target.folderId, name: target.name, draft, id });
+    state.set({ collections: next, openRequestId: id });
+    showSidebarTab('tab-collections');
+    setNotice('Saved as ' + requestPath(next, id) + '.');
+  }
+
+  $('save').addEventListener('click', () => save(false));
+  $('save-as').addEventListener('click', () => save(true));
+  onShortcut('s', event => save(event.shiftKey));
+  $('new-request').addEventListener('click', () => state.set({ draft: emptyDraft(), openRequestId: null }));
+  $('new-collection').addEventListener('click', async () => {
+    const name = await askText({ title: 'New collection', label: 'Collection name', confirm: 'Create' });
+    if (name) state.set({ collections: addCollection(collections(), name, makeId()) });
+  });
+
+  state.onChange(changed => { if (changed.has('collections') || changed.has('openRequestId')) show(); });
+  show();
+}
+
+/** A name to offer when saving: the last part of the address path, or the method alone. */
+function suggestName(draft) {
+  const path = (draft.url || '').replace(/^https?:\/\//i, '').split('?')[0].split('/').filter(Boolean);
+  return path.length > 1 ? draft.method + ' ' + path[path.length - 1] : draft.method + ' ' + (path[0] || 'request');
+}
+
 // ---- src/ui/environments-dialog.js ----
 /** The environment manager: create, rename and delete environments, and edit their variables. */
 
@@ -1361,343 +1637,163 @@ function smallButton(text, title) {
   return button;
 }
 
-// ---- src/ui/auth-editor.js ----
-/** The Auth tab of the editor: no authentication, a Bearer token, or Basic user name and password. */
+// ---- src/ui/environments-controller.js ----
+/** The environment picker above the editor and the Environments button that opens the manager. */
 
 
-const AUTH_LABELS = { none: 'No authentication', bearer: 'Bearer token', basic: 'Basic (user name and password)' };
-
-/** Draws the auth settings into the container and calls onChange with new settings after every edit. */
-function renderAuth(container, auth, onChange) {
-  const current = copyAuth(auth);
-  container.replaceChildren();
-
-  const type = document.createElement('select');
-  type.setAttribute('aria-label', 'Authentication type');
-  for (const [value, label] of Object.entries(AUTH_LABELS)) type.append(new Option(label, value));
-  type.value = current.type;
-  type.addEventListener('change', () => {
-    current.type = type.value;
-    onChange(copyAuth(current));
-    renderAuth(container, current, onChange);
-  });
-  container.append(type);
-
-  const input = (label, field, inputType) => {
-    const wrap = document.createElement('label');
-    wrap.className = 'auth-field';
-    const caption = document.createElement('span');
-    caption.textContent = label;
-    const box = document.createElement('input');
-    box.type = inputType;
-    box.spellcheck = false;
-    box.autocomplete = 'off';
-    box.value = current[field];
-    box.placeholder = 'Text, or a {{variable}}';
-    box.addEventListener('input', () => { current[field] = box.value; onChange(copyAuth(current)); });
-    wrap.append(caption, box);
-    container.append(wrap);
+/** Wires the picker and the manager to the state. */
+function startEnvironments(state) {
+  const picker = document.getElementById('environment');
+  const show = () => {
+    picker.replaceChildren(new Option('No environment', ''), ...state.get('environments').map(e => new Option(e.name, e.id)));
+    picker.value = state.get('activeEnvironmentId') || '';
   };
-  if (current.type === 'bearer') input('Token', 'token', 'text');
-  if (current.type === 'basic') { input('User name', 'username', 'text'); input('Password', 'password', 'password'); }
 
-  if (current.type !== 'none') {
-    const note = document.createElement('p');
-    note.className = 'note';
-    note.textContent = 'Sent as the Authorization header. Kept in plain text in this browser and in exports: '
-      + 'put secrets in an environment variable ({{token}}) and do not share that environment.';
-    container.append(note);
-  }
+  picker.addEventListener('change', () => state.set({ activeEnvironmentId: picker.value || null }));
+  document.getElementById('manage-environments').addEventListener('click', async () => {
+    const chosen = await manageEnvironments(state.get('environments'), state.get('activeEnvironmentId'),
+      environments => state.set({ environments }));
+    if (chosen) state.set({ activeEnvironmentId: chosen });
+  });
+
+  state.onChange(changed => { if (changed.has('environments') || changed.has('activeEnvironmentId')) show(); });
+  show();
 }
 
-// ---- src/ui/response-view.js ----
-/** The response panel: status, time, size, body and headers of the last response, or why there is none. */
+// ---- src/core/export-format.js ----
+/**
+ * The export file: the one format this app promises to read back, so a file exported today still imports
+ * after an upgrade. It carries the whole workspace: history, collections and environments. EXPORT_FIELDS is both the
+ * validator and the source of the export-format map; a field removed from it is refused once it has shipped.
+ */
 
 
-/** Shows a response that came back: its bytes are the body as received, elapsed the time in milliseconds. */
-function showResponse(response, bytes, elapsed) {
+/** The value of the file's "format" field; a file without it is not one of ours. */
+const EXPORT_FORMAT = 'postman-alternative';
+
+/** The newest version this code writes. Older versions must keep importing. */
+const EXPORT_VERSION = 1;
+
+/**
+ * Every field of the file, as [path, type]. "[]" marks the items of an array. Type is one JSON type, or
+ * several joined by "|". The draft's fields come from DRAFT_FIELDS, wherever a draft is stored.
+ *
+ * "missing" means a file may lack the field: files written before it existed must keep importing, so a field
+ * added later accepts "missing" and the importer fills its default. When an optional field is absent, the
+ * fields under it are not checked. Additive only once released: see docs/maps/README.md.
+ */
+const EXPORT_FIELDS = [
+  ['format', 'string'],
+  ['version', 'number'],
+  ['exportedAt', 'string'],
+  ['history', 'array'],
+  ['history[].id', 'string'],
+  ['history[].sentAt', 'number'],
+  ['history[].draft', 'object'],
+  ...fieldsAt('history[].draft', DRAFT_FIELDS),
+  ['history[].status', 'number|null'],
+  ['history[].error', 'string|null'],
+  ['collections', 'array|missing'],
+  ['collections[].id', 'string'],
+  ['collections[].name', 'string'],
+  ['collections[].folders', 'array'],
+  ['collections[].folders[].id', 'string'],
+  ['collections[].folders[].name', 'string'],
+  ['collections[].requests', 'array'],
+  ['collections[].requests[].id', 'string'],
+  ['collections[].requests[].name', 'string'],
+  ['collections[].requests[].folderId', 'string|null'],
+  ['collections[].requests[].draft', 'object'],
+  ...fieldsAt('collections[].requests[].draft', DRAFT_FIELDS),
+  ['environments', 'array|missing'],
+  ['environments[].id', 'string'],
+  ['environments[].name', 'string'],
+  ['environments[].variables', 'array'],
+  ...fieldsAt('environments[].variables[]', ROW_FIELDS),
+];
+
+/** The text of an export file for this workspace. */
+function serializeWorkspace({ history, collections, environments }, exportedAt) {
+  const file = {
+    format: EXPORT_FORMAT,
+    version: EXPORT_VERSION,
+    exportedAt,
+    history: history.map(entry => ({ id: entry.id, sentAt: entry.sentAt, draft: copyDraft(entry.draft), status: entry.status, error: entry.error })),
+    collections: collections.map(c => ({
+      id: c.id,
+      name: c.name,
+      folders: c.folders.map(f => ({ id: f.id, name: f.name })),
+      requests: c.requests.map(r => ({ id: r.id, name: r.name, folderId: r.folderId ?? null, draft: copyDraft(r.draft) })),
+    })),
+    environments: environments.map(e => ({ id: e.id, name: e.name, variables: e.variables.map(copyRow) })),
+  };
+  return JSON.stringify(file, null, 2) + '\n';
+}
+
+/**
+ * The workspace in an export file: { history, collections, environments }, with every field a file from an
+ * earlier version lacks filled with its default. Throws a plain-language error naming the first field that is
+ * missing or of the wrong type, or a version newer than this code knows.
+ */
+function parseExport(text) {
+  let file;
+  try {
+    file = JSON.parse(text);
+  } catch {
+    throw new Error('This file is not JSON, so it is not an export from this app.');
+  }
+  if (!file || file.format !== EXPORT_FORMAT) throw new Error('This JSON file is not an export from A Postman Alternative.');
+  if (typeof file.version === 'number' && file.version > EXPORT_VERSION) {
+    throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
+  }
+  for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
+  return {
+    history: file.history.map(entry => ({ ...entry, draft: copyDraft(entry.draft) })),
+    collections: (file.collections || []).map(c => ({ ...c, requests: c.requests.map(r => ({ ...r, draft: copyDraft(r.draft) })) })),
+    environments: file.environments || [],
+  };
+}
+
+/** Walks one field path into the file and throws when the value at its end is not of the expected type. */
+function checkField(value, steps, type, where) {
+  if (steps.length === 0) {
+    if (!type.split('|').includes(jsonType(value))) {
+      throw new Error('The file is damaged: "' + where + '" should be ' + type.split('|').filter(t => t !== 'missing').join(' or ') + '.');
+    }
+    return;
+  }
+  // An optional field above this one is absent: it was accepted when checked, and has nothing under it to check.
+  if (value === undefined) return;
+  const [step, ...rest] = steps;
+  const isItems = step.endsWith('[]');
+  const name = isItems ? step.slice(0, -2) : step;
+  const child = value[name];
+  const here = where ? where + '.' + name : name;
+  if (!isItems) return checkField(child, rest, type, here);
+  if (!Array.isArray(child)) return;
+  child.forEach((item, index) => checkField(item, rest, type, here + '[' + index + ']'));
+}
+
+/** The JSON type of a value, with null and arrays told apart from objects, and an absent field as "missing". */
+function jsonType(value) {
+  if (value === undefined) return 'missing';
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+// ---- src/ui/workspace-file.js ----
+/** Export and Import: the whole workspace (history, collections, environments) to and from a JSON file. */
+
+
+/** Wires the Export and Import buttons to the state. */
+function startWorkspaceFile(state) {
   const $ = id => document.getElementById(id);
-  $('response-empty').hidden = true;
-  $('response-error').hidden = true;
-  $('response-content').hidden = false;
-  const status = $('status');
-  status.textContent = statusLabel(response.status, response.statusText);
-  status.className = 'badge ' + statusClass(response.status);
-  $('time').textContent = formatDuration(elapsed);
-  $('size').textContent = formatBytes(bytes.byteLength);
-  const body = prettyBody(new TextDecoder().decode(bytes));
-  $('response-body').textContent = body.text || '(empty body)';
-  $('response-body').dataset.kind = body.kind;
-  const rows = [];
-  response.headers.forEach((value, name) => rows.push([name, value]));
-  $('response-headers').replaceChildren(...rows.map(([name, value]) => headerRow(name, value)));
-  $('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
-  $('headers-note').hidden = false;
-}
-
-/** Shows why there is no response: a request that could not be sent, or a send that failed. */
-function showError(message) {
-  const $ = id => document.getElementById(id);
-  $('response-empty').hidden = true;
-  $('response-content').hidden = true;
-  $('response-error').hidden = false;
-  $('response-error').textContent = message;
-}
-
-/** Turns Send into Cancel while a request is in flight, and dims the last response. */
-function setSending(sending) {
-  const send = document.getElementById('send');
-  send.textContent = sending ? 'Cancel' : 'Send';
-  send.classList.toggle('cancel', sending);
-  document.getElementById('response').classList.toggle('loading', sending);
-}
-
-/** A table row: the header name in a <th>, its value in a <td>. */
-function headerRow(name, value) {
-  const row = document.createElement('tr');
-  const key = document.createElement('th');
-  key.textContent = name;
-  const cell = document.createElement('td');
-  cell.textContent = value;
-  row.append(key, cell);
-  return row;
-}
-
-// ---- src/ui/app.js ----
-/** The page: wires the editor, the send button, the response panel and the sidebar together. */
-
-
-/** Starts the app once the page is loaded. */
-function startApp() {
-  const $ = id => document.getElementById(id);
-  let draft = copyDraft(loadDraft() || emptyDraft());
-  let history = loadHistory();
-  let collections = loadCollections();
-  let openRequestId = loadOpenRequestId();
-  if (openRequestId && !findRequest(collections, openRequestId)) openRequestId = null;
-  let environments = loadEnvironments();
-  let activeEnvironmentId = loadActiveEnvironmentId();
-  let inFlight = null;
-
-  const method = $('method');
-  for (const name of METHODS) method.append(new Option(name, name));
-
-  const changed = () => { saveDraft(draft); refreshBodyHint(); refreshTitle(); refreshPreview(); };
-
-  function showDraft() {
-    method.value = draft.method;
-    $('url').value = draft.url;
-    $('body-mode').value = draft.bodyMode;
-    $('body').value = draft.body;
-    renderRows($('params'), draft.params, rows => { draft.params = rows; changed(); }, { keyPlaceholder: 'Parameter' });
-    renderRows($('headers'), draft.headers, rows => { draft.headers = rows; changed(); }, { keyPlaceholder: 'Header', checkHeaders: true });
-    renderAuth($('auth'), draft.auth, auth => { draft.auth = auth; changed(); });
-    refreshBodyHint();
-    refreshTitle();
-    refreshPreview();
-  }
-
-  function refreshBodyHint() {
-    $('body').hidden = draft.bodyMode === 'none';
-    $('body-hint').textContent = draft.bodyMode !== 'none' && methodTakesNoBody(draft.method)
-      ? 'A ' + draft.method + ' request carries no body: this one will not be sent.'
-      : '';
-    $('tab-params').textContent = 'Params' + countLabel(draft.params);
-    $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
-    $('tab-auth').textContent = draft.auth.type === 'none' ? 'Auth' : 'Auth (' + draft.auth.type + ')';
-  }
-
-  /** The line above the editor: which saved request is open, and whether the editor differs from it. */
-  function refreshTitle() {
-    const found = openRequestId && findRequest(collections, openRequestId);
-    $('request-title').textContent = found ? requestPath(collections, openRequestId) : 'Unsaved request';
-    $('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
-    $('save-as').hidden = !found;
-  }
-
-  /** Under the address: where the request will really go, when the address uses {{variables}}. */
-  function refreshPreview() {
-    const preview = $('resolved-url');
-    if (referencedNames(draft.url).length === 0) { preview.hidden = true; return; }
-    const { draft: resolved, missing } = resolveDraft(draft, activeEnvironment());
-    preview.hidden = false;
-    preview.textContent = 'Sends to ' + resolved.url + (missing.length ? '   (' + missingVariablesWarning(missing, activeEnvironment()) + ')' : '');
-    preview.classList.toggle('missing', missing.length > 0);
-  }
-
-  // ---- Environments ----
-
-  function activeEnvironment() {
-    return environments.find(e => e.id === activeEnvironmentId) || null;
-  }
-
-  function setEnvironments(next, nextActiveId = activeEnvironmentId) {
-    environments = next;
-    activeEnvironmentId = environments.some(e => e.id === nextActiveId) ? nextActiveId : null;
-    saveEnvironments(environments);
-    saveActiveEnvironmentId(activeEnvironmentId);
-    showEnvironmentPicker();
-    refreshPreview();
-  }
-
-  function showEnvironmentPicker() {
-    const picker = $('environment');
-    picker.replaceChildren(new Option('No environment', ''), ...environments.map(e => new Option(e.name, e.id)));
-    picker.value = activeEnvironmentId || '';
-  }
-
-  $('environment').addEventListener('change', () => setEnvironments(environments, $('environment').value || null));
-  $('manage-environments').addEventListener('click', async () => {
-    const chosen = await manageEnvironments(environments, activeEnvironmentId, next => setEnvironments(next));
-    if (chosen) setEnvironments(environments, chosen);
-  });
-
-  method.addEventListener('change', () => { draft.method = method.value; changed(); });
-  $('url').addEventListener('input', () => { draft.url = $('url').value; changed(); });
-  $('body-mode').addEventListener('change', () => { draft.bodyMode = $('body-mode').value; changed(); });
-  $('body').addEventListener('input', () => { draft.body = $('body').value; changed(); });
-
-  setUpTabs('request-tabs');
-  setUpTabs('response-tabs');
-  setUpTabs('sidebar-tabs');
-
-  $('request-line').addEventListener('submit', event => {
-    event.preventDefault();
-    if (inFlight) inFlight.abort();
-    else send();
-  });
-  document.addEventListener('keydown', event => {
-    if (!(event.ctrlKey || event.metaKey) || $('dialog').open) return;
-    if (event.key === 'Enter') { event.preventDefault(); if (!inFlight) send(); }
-    if (event.key === 's' || event.key === 'S') { event.preventDefault(); save(event.shiftKey); }
-  });
-
-  async function send() {
-    // The editor keeps the {{names}}; only what is sent carries the environment's values.
-    const resolved = resolveDraft(draft, activeEnvironment());
-    let request;
-    try {
-      request = toFetchRequest(resolved.draft);
-    } catch (error) {
-      showError(error.message);
-      return;
-    }
-    const warnings = [missingVariablesWarning(resolved.missing, activeEnvironment()), ...request.warnings].filter(Boolean);
-    $('warnings').replaceChildren(...warnings.map(text => paragraph(text)));
-    const sentAt = Date.now();
-    const sent = copyDraft(draft);
-    inFlight = new AbortController();
-    setSending(true);
-    const started = performance.now();
-    try {
-      const response = await fetch(request.url, { ...request.init, signal: inFlight.signal });
-      const bytes = new Uint8Array(await response.arrayBuffer());
-      const elapsed = performance.now() - started;
-      showResponse(response, bytes, elapsed);
-      remember(sent, sentAt, { status: response.status });
-    } catch (error) {
-      const message = explainFetchError(error, request.url, location.protocol);
-      showError(message);
-      if (error.name !== 'AbortError') remember(sent, sentAt, { error: message });
-    } finally {
-      inFlight = null;
-      setSending(false);
-    }
-  }
-
-  // The draft as it was when Send was pressed: the user may edit the editor while a slow request is in flight.
-  function remember(sent, sentAt, outcome) {
-    history = addToHistory(history, historyEntry(sent, outcome, sentAt));
-    saveHistory(history);
-    showHistory();
-  }
-
-  function showHistory() {
-    renderHistory($('history'), $('history-empty'), history, entry => openDraft(entry.draft, null));
-  }
-
-  /** Loads a draft into the editor; requestId links it to a saved request, or null for a free draft. */
-  function openDraft(next, requestId) {
-    draft = copyDraft(next);
-    openRequestId = requestId;
-    saveDraft(draft);
-    saveOpenRequestId(openRequestId);
-    showDraft();
-    showCollections();
-  }
-
-  // ---- Collections ----
-
-  function setCollections(next) {
-    collections = next;
-    saveCollections(collections);
-    if (openRequestId && !findRequest(collections, openRequestId)) { openRequestId = null; saveOpenRequestId(null); }
-    showCollections();
-    refreshTitle();
-  }
-
-  function showCollections() {
-    renderCollections($('collections'), collections, openRequestId, {
-      open: id => openDraft(findRequest(collections, id).request.draft, id),
-      addFolder: async collectionId => {
-        const name = await askText({ title: 'New folder', label: 'Folder name', confirm: 'Add' });
-        if (name) setCollections(addFolder(collections, collectionId, name, makeId()));
-      },
-      rename: async (id, current) => {
-        const name = await askText({ title: 'Rename', label: 'New name', initial: current, confirm: 'Rename' });
-        if (name) setCollections(renameItem(collections, id, name));
-      },
-      remove: (id, label) => {
-        const kept = { collections, openRequestId };
-        setCollections(removeItem(collections, id));
-        setNotice('Removed ' + label + '.', () => {
-          openRequestId = kept.openRequestId;
-          saveOpenRequestId(openRequestId);
-          setCollections(kept.collections);
-          setNotice('');
-        });
-      },
-    });
-  }
-
-  /** Save: updates the open saved request, or asks where to save a new one. asNew forces the question. */
-  async function save(asNew) {
-    if (openRequestId && !asNew) {
-      setCollections(updateRequestDraft(collections, openRequestId, draft));
-      setNotice('Saved.');
-      return;
-    }
-    const target = await askSaveTarget(collections, suggestName(draft));
-    if (!target) return;
-    let next = collections;
-    let collectionId = target.collectionId;
-    if (!collectionId) {
-      collectionId = makeId();
-      next = addCollection(next, target.newCollectionName, collectionId);
-    }
-    const id = makeId();
-    next = addRequest(next, { collectionId, folderId: target.folderId, name: target.name, draft, id });
-    openRequestId = id;
-    saveOpenRequestId(id);
-    setCollections(next);
-    showSidebarTab('tab-collections');
-    setNotice('Saved as ' + requestPath(collections, id) + '.');
-  }
-
-  $('save').addEventListener('click', () => save(false));
-  $('save-as').addEventListener('click', () => save(true));
-  $('new-request').addEventListener('click', () => openDraft(emptyDraft(), null));
-  $('new-collection').addEventListener('click', async () => {
-    const name = await askText({ title: 'New collection', label: 'Collection name', confirm: 'Create' });
-    if (name) setCollections(addCollection(collections, name, makeId()));
-  });
-
-  // ---- Export, import, clear ----
 
   $('export').addEventListener('click', () => {
-    const text = serializeWorkspace({ history, collections, environments }, new Date().toISOString());
+    const workspace = { history: state.get('history'), collections: state.get('collections'), environments: state.get('environments') };
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    link.href = URL.createObjectURL(new Blob([serializeWorkspace(workspace, new Date().toISOString())], { type: 'application/json' }));
     link.download = 'postman-alternative-' + new Date().toISOString().slice(0, 10) + '.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
@@ -1710,92 +1806,47 @@ function startApp() {
     if (!file) return;
     try {
       const imported = parseExport(await file.text());
-      const before = { history: history.length, requests: countRequests(collections), environments: environments.length };
-      history = mergeHistory(history, imported.history);
-      saveHistory(history);
-      showHistory();
-      setCollections(mergeCollections(collections, imported.collections));
-      setEnvironments(mergeEnvironments(environments, imported.environments));
-      setNotice('Imported from ' + file.name + ': ' + (countRequests(collections) - before.requests) + ' saved request(s), '
-        + (environments.length - before.environments) + ' environment(s), ' + (history.length - before.history) + ' history entr(ies).');
+      const before = counts(state);
+      state.set({
+        history: mergeHistory(state.get('history'), imported.history),
+        collections: mergeCollections(state.get('collections'), imported.collections),
+        environments: mergeEnvironments(state.get('environments'), imported.environments),
+      });
+      const after = counts(state);
+      setNotice('Imported from ' + file.name + ': ' + (after.requests - before.requests) + ' saved request(s), '
+        + (after.environments - before.environments) + ' environment(s), ' + (after.history - before.history) + ' history entr(ies).');
     } catch (error) {
       setNotice(error.message);
     }
   });
-
-  $('clear').addEventListener('click', () => {
-    if (history.length === 0) return;
-    const kept = history;
-    history = [];
-    saveHistory(history);
-    showHistory();
-    setNotice('History cleared.', () => { history = kept; saveHistory(history); showHistory(); setNotice(''); });
-  });
-
-  function setNotice(text, undo) {
-    const notice = $('notice');
-    notice.replaceChildren(text);
-    if (undo) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'link';
-      button.textContent = 'Undo';
-      button.addEventListener('click', undo);
-      notice.append(' ', button);
-    }
-  }
-
-  showEnvironmentPicker();
-  showDraft();
-  showHistory();
-  showCollections();
-  showSidebarTab(collections.length ? 'tab-collections' : 'tab-history');
 }
 
-/** Makes the tab buttons of one tab list show their own panel and hide the others. */
-function setUpTabs(groupId) {
-  const group = document.getElementById(groupId);
-  const tabs = [...group.querySelectorAll('[role=tab]')];
-  for (const tab of tabs) tab.addEventListener('click', () => selectTab(tabs, tab));
+/** How many saved requests, environments and history entries the state holds. */
+function counts(state) {
+  return {
+    requests: state.get('collections').reduce((n, c) => n + c.requests.length, 0),
+    environments: state.get('environments').length,
+    history: state.get('history').length,
+  };
 }
 
-/** Selects one tab of its list and shows its panel. */
-function selectTab(tabs, tab) {
-  for (const other of tabs) {
-    const selected = other === tab;
-    other.setAttribute('aria-selected', String(selected));
-    document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
-  }
-}
+// ---- src/ui/app.js ----
+/** The page: creates the state and starts one controller per feature. Nothing else lives here. */
 
-/** Shows one of the sidebar's tabs by its button id. */
-function showSidebarTab(tabId) {
-  const tabs = [...document.querySelectorAll('#sidebar-tabs [role=tab]')];
-  selectTab(tabs, document.getElementById(tabId));
-}
 
-/** A name to offer when saving: the last part of the address path, or the method alone. */
-function suggestName(draft) {
-  const path = (draft.url || '').replace(/^https?:\/\//i, '').split('?')[0].split('/').filter(Boolean);
-  return path.length > 1 ? draft.method + ' ' + path[path.length - 1] : draft.method + ' ' + (path[0] || 'request');
-}
-
-/** How many saved requests the collections hold in all. */
-function countRequests(collections) {
-  return collections.reduce((n, c) => n + c.requests.length, 0);
-}
-
-/** " (3)" for three rows that will be sent, or "" when none will. */
-function countLabel(rows) {
-  const count = enabledRows(rows).length;
-  return count ? ' (' + count + ')' : '';
-}
-
-/** A <p> holding this text. */
-function paragraph(text) {
-  const p = document.createElement('p');
-  p.textContent = text;
-  return p;
+/** Starts the app once the page is loaded. */
+function startApp() {
+  const state = createState();
+  setUpTabs('request-tabs');
+  setUpTabs('response-tabs');
+  setUpTabs('sidebar-tabs');
+  startEnvironments(state);
+  startEditor(state);
+  startSender(state);
+  startHistory(state);
+  startCollections(state);
+  startWorkspaceFile(state);
+  showSidebarTab(state.get('collections').length ? 'tab-collections' : 'tab-history');
 }
 
 startApp();

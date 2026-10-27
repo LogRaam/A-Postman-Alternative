@@ -46,6 +46,6 @@ export function generateInventory(root) {
 }
 
 /** Lines in a file as an editor numbers them: a final newline does not start another line. */
-function lineCount(text) {
+export function lineCount(text) {
   return text.split('\n').length - (text.endsWith('\n') ? 1 : 0);
 }
