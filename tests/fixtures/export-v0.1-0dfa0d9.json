@@ -1,0 +1,41 @@
+{
+  "format": "postman-alternative",
+  "version": 1,
+  "exportedAt": "2026-10-26T22:00:00.000Z",
+  "history": [
+    {
+      "id": "h-0dfa0d9-2",
+      "sentAt": 1793050000000,
+      "draft": {
+        "method": "POST",
+        "url": "https://httpbin.org/post",
+        "params": [],
+        "headers": [
+          {
+            "enabled": true,
+            "key": "X-Demo",
+            "value": "1"
+          }
+        ],
+        "bodyMode": "json",
+        "body": "{\"a\":1}"
+      },
+      "status": 200,
+      "error": null
+    },
+    {
+      "id": "h-0dfa0d9-1",
+      "sentAt": 1793040000000,
+      "draft": {
+        "method": "GET",
+        "url": "https://postman-echo.com/get",
+        "params": [],
+        "headers": [],
+        "bodyMode": "none",
+        "body": ""
+      },
+      "status": null,
+      "error": "Blocked by CORS or unreachable."
+    }
+  ]
+}

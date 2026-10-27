@@ -70,7 +70,7 @@ Turning what fetch() throws into a sentence the user can act on.
 
 - `explainFetchError` function, exported: A plain explanation of a failed send.
 
-### `src/core/export-format.js` (112 lines)
+### `src/core/export-format.js` (123 lines)
 
 The export file: the one format this app promises to read back, so a file exported today still imports after an upgrade.
 
@@ -78,9 +78,9 @@ The export file: the one format this app promises to read back, so a file export
 - `EXPORT_VERSION` const, exported: The newest version this code writes.
 - `EXPORT_FIELDS` const, exported: Every field of the file, as [path, type].
 - `serializeWorkspace` function, exported: The text of an export file for this workspace.
-- `parseExport` function, exported: The workspace in an export file: { history, collections, environments }.
+- `parseExport` function, exported: The workspace in an export file: { history, collections, environments }, with every field a file from an earlier version lacks filled with its default.
 - `checkField` function, private: Walks one field path into the file and throws when the value at its end is not of the expected type.
-- `jsonType` function, private: The JSON type of a value, with null and arrays told apart from objects.
+- `jsonType` function, private: The JSON type of a value, with null and arrays told apart from objects, and an absent field as "missing".
 
 ### `src/core/fields.js` (6 lines)
 

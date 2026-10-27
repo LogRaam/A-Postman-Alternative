@@ -17,7 +17,10 @@ export const EXPORT_VERSION = 1;
 /**
  * Every field of the file, as [path, type]. "[]" marks the items of an array. Type is one JSON type, or
  * several joined by "|". The draft's fields come from DRAFT_FIELDS, wherever a draft is stored.
- * Additive only once released: see docs/maps/README.md.
+ *
+ * "missing" means a file may lack the field: files written before it existed must keep importing, so a field
+ * added later accepts "missing" and the importer fills its default. When an optional field is absent, the
+ * fields under it are not checked. Additive only once released: see docs/maps/README.md.
  */
 export const EXPORT_FIELDS = [
   ['format', 'string'],
@@ -30,7 +33,7 @@ export const EXPORT_FIELDS = [
   ...fieldsAt('history[].draft', DRAFT_FIELDS),
   ['history[].status', 'number|null'],
   ['history[].error', 'string|null'],
-  ['collections', 'array'],
+  ['collections', 'array|missing'],
   ['collections[].id', 'string'],
   ['collections[].name', 'string'],
   ['collections[].folders', 'array'],
@@ -42,7 +45,7 @@ export const EXPORT_FIELDS = [
   ['collections[].requests[].folderId', 'string|null'],
   ['collections[].requests[].draft', 'object'],
   ...fieldsAt('collections[].requests[].draft', DRAFT_FIELDS),
-  ['environments', 'array'],
+  ['environments', 'array|missing'],
   ['environments[].id', 'string'],
   ['environments[].name', 'string'],
   ['environments[].variables', 'array'],
@@ -68,8 +71,9 @@ export function serializeWorkspace({ history, collections, environments }, expor
 }
 
 /**
- * The workspace in an export file: { history, collections, environments }. Throws a plain-language error naming the first
- * field that is missing or of the wrong type, or a version newer than this code knows.
+ * The workspace in an export file: { history, collections, environments }, with every field a file from an
+ * earlier version lacks filled with its default. Throws a plain-language error naming the first field that is
+ * missing or of the wrong type, or a version newer than this code knows.
  */
 export function parseExport(text) {
   let file;
@@ -83,17 +87,23 @@ export function parseExport(text) {
     throw new Error('This file was written by a newer version of this app (format version ' + file.version + '). Update the app to import it.');
   }
   for (const [path, type] of EXPORT_FIELDS) checkField(file, path.split('.'), type, '');
-  return { history: file.history, collections: file.collections, environments: file.environments };
+  return {
+    history: file.history.map(entry => ({ ...entry, draft: copyDraft(entry.draft) })),
+    collections: (file.collections || []).map(c => ({ ...c, requests: c.requests.map(r => ({ ...r, draft: copyDraft(r.draft) })) })),
+    environments: file.environments || [],
+  };
 }
 
 /** Walks one field path into the file and throws when the value at its end is not of the expected type. */
 function checkField(value, steps, type, where) {
   if (steps.length === 0) {
     if (!type.split('|').includes(jsonType(value))) {
-      throw new Error('The file is damaged: "' + where + '" should be ' + type.split('|').join(' or ') + '.');
+      throw new Error('The file is damaged: "' + where + '" should be ' + type.split('|').filter(t => t !== 'missing').join(' or ') + '.');
     }
     return;
   }
+  // An optional field above this one is absent: it was accepted when checked, and has nothing under it to check.
+  if (value === undefined) return;
   const [step, ...rest] = steps;
   const isItems = step.endsWith('[]');
   const name = isItems ? step.slice(0, -2) : step;
@@ -104,8 +114,9 @@ function checkField(value, steps, type, where) {
   child.forEach((item, index) => checkField(item, rest, type, here + '[' + index + ']'));
 }
 
-/** The JSON type of a value, with null and arrays told apart from objects. */
+/** The JSON type of a value, with null and arrays told apart from objects, and an absent field as "missing". */
 function jsonType(value) {
+  if (value === undefined) return 'missing';
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
   return typeof value;

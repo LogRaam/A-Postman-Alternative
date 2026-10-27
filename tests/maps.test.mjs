@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { ROOT, readText } from '../tools/source.mjs';
 import { MAPS, treeIsComplete } from '../tools/maps/index.mjs';
 import { describeDiff } from '../tools/maps/diff.mjs';
-import { brokenReleasedFields } from '../tools/maps/export-format.mjs';
+import { brokenReleasedFields, requiredFieldsAddedSinceRelease } from '../tools/maps/export-format.mjs';
 import { ratchetProblems } from '../tools/maps/ratchets.mjs';
 import { buildHtml, OUTPUT_FILE } from '../tools/build.mjs';
 
@@ -37,6 +37,13 @@ describe('Blocking checks (regenerating never fixes these)', () => {
     if (broken.length && process.env.ALLOW_FORMAT_FIELD_REMOVAL !== '1') {
       assert.fail('These export fields shipped and are gone or narrower: ' + broken.map(([p, t]) => p + ' (' + t + ')').join(', ')
         + '. Users\' exported files would stop importing. Put them back, or set ALLOW_FORMAT_FIELD_REMOVAL=1 and explain why in the commit.');
+    }
+  });
+  test('every export field added since the release accepts "missing", so released files still import', { skip }, async () => {
+    const added = await requiredFieldsAddedSinceRelease(ROOT);
+    if (added.length) {
+      assert.fail('These export fields were added since the release and are required: ' + added.map(([p, t]) => p + ' (' + t + ')').join(', ')
+        + '. Every file exported by the released version lacks them and would stop importing. Add "|missing" to their type and fill the default on import.');
     }
   });
   test('the ratchets hold at their baselines', { skip }, () => {

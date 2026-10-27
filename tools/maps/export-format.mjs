@@ -58,6 +58,32 @@ export async function brokenReleasedFields(root) {
   });
 }
 
+/**
+ * Fields added since the release that a released file cannot have: they do not accept "missing", and no
+ * ancestor of theirs is itself new and optional. Such a field makes every file exported by the released version
+ * fail to import. Empty before the first release (there is no released file to protect yet).
+ */
+export async function requiredFieldsAddedSinceRelease(root) {
+  const { EXPORT_FIELDS } = await loadFormat(root);
+  const released = readReleased(root);
+  if (!released.version) return [];
+  const releasedPaths = new Set(released.fields.map(([path]) => path));
+  const now = new Map(EXPORT_FIELDS);
+  const isNewOptional = path => !releasedPaths.has(path) && now.has(path) && now.get(path).split('|').includes('missing');
+  return EXPORT_FIELDS.filter(([path, type]) => {
+    if (releasedPaths.has(path) || type.split('|').includes('missing')) return false;
+    return !ancestorsOf(path).some(isNewOptional);
+  });
+}
+
+/** "a[].b.c" -> ["a[].b", "a"]: the fields a path sits under, nearest first. An array's items sit under the array. */
+function ancestorsOf(path) {
+  const steps = path.split('.');
+  const out = [];
+  for (let i = steps.length - 1; i > 0; i--) out.push(steps.slice(0, i).join('.').replace(/\[\]$/, ''));
+  return out;
+}
+
 /** The text of the released snapshot for this version: written only by `npm run update-maps -- --record-released`. */
 export async function releasedSnapshot(root, version) {
   const { EXPORT_FIELDS } = await loadFormat(root);

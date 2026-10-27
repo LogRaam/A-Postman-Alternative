@@ -2,6 +2,7 @@
 
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { serializeWorkspace, parseExport, EXPORT_FORMAT, EXPORT_VERSION } from '../src/core/export-format.js';
 import { historyEntry } from '../src/core/history.js';
 import { addCollection, addFolder, addRequest } from '../src/core/collections.js';
@@ -24,6 +25,15 @@ describe('The export file', () => {
   test('round-trips: what is exported imports back unchanged', () => {
     const workspace = sampleWorkspace();
     assert.deepEqual(parseExport(serializeWorkspace(workspace, '2026-10-26T00:00:00.000Z')), workspace);
+  });
+  test('a file written by v0.1 (history only, no auth, collections or environments) still imports', () => {
+    // Written by the real serializer of commit 0dfa0d9: see tests/fixtures. Never regenerate it.
+    const old = parseExport(readFileSync(new URL('./fixtures/export-v0.1-0dfa0d9.json', import.meta.url), 'utf8'));
+    assert.equal(old.history.length, 2);
+    assert.deepEqual(old.history[0].draft.auth, { type: 'none', token: '', username: '', password: '' });
+    assert.equal(old.history[0].draft.body, '{"a":1}');
+    assert.deepEqual(old.collections, []);
+    assert.deepEqual(old.environments, []);
   });
   test('refuses a file that is not JSON, or JSON that is not ours', () => {
     assert.throws(() => parseExport('nope'), /not JSON/);

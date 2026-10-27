@@ -17,7 +17,7 @@ export const DRAFT_FIELDS = [
   ...fieldsAt('headers[]', ROW_FIELDS),
   ['bodyMode', 'string'],
   ['body', 'string'],
-  ['auth', 'object'],
+  ['auth', 'object|missing'],
   ...fieldsAt('auth', AUTH_FIELDS),
 ];
 

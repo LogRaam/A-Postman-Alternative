@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { ROOT, readText } from './source.mjs';
 import { MAPS, treeIsComplete } from './maps/index.mjs';
 import { describeDiff } from './maps/diff.mjs';
-import { brokenReleasedFields, releasedSnapshot, RELEASED_FILE } from './maps/export-format.mjs';
+import { brokenReleasedFields, requiredFieldsAddedSinceRelease, releasedSnapshot, RELEASED_FILE } from './maps/export-format.mjs';
 import { ratchetProblems } from './maps/ratchets.mjs';
 
 if (!treeIsComplete(ROOT)) {
@@ -25,6 +25,12 @@ const broken = await brokenReleasedFields(ROOT);
 if (broken.length && process.env.ALLOW_FORMAT_FIELD_REMOVAL !== '1') {
   console.error('REFUSED: these export fields shipped and are gone or narrower: ' + broken.map(([p, t]) => p + ' (' + t + ')').join(', '));
   console.error('Users\' exported files would stop importing. Nothing was written.');
+  process.exit(1);
+}
+const added = await requiredFieldsAddedSinceRelease(ROOT);
+if (added.length) {
+  console.error('REFUSED: these export fields were added since the release and are required: ' + added.map(([p, t]) => p + ' (' + t + ')').join(', '));
+  console.error('Files exported by the released version lack them and would stop importing. Add "|missing". Nothing was written.');
   process.exit(1);
 }
 
