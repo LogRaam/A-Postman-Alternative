@@ -1,14 +1,24 @@
-/** Small page-wide helpers shared by the controllers: tabs, keyboard shortcuts, the notice line. */
+/** Small page-wide helpers shared by the controllers: elements by id, tabs, keyboard shortcuts, the notice line. */
 
-/** Makes the tab buttons of one tab list show their own panel and hide the others. */
-export function setUpTabs(groupId) {
-  const tabs = [...document.getElementById(groupId).querySelectorAll('[role=tab]')];
+/**
+ * The element of src/index.html with this id. Throws, naming the id, when the template has none: a renamed id
+ * fails loudly here instead of leaving a button that silently does nothing. docs/maps/dom-ids.md lists them all.
+ */
+export function byId(id) {
+  const element = document.getElementById(id);
+  if (!element) throw new Error('The page has no element with id "' + id + '" (see src/index.html).');
+  return element;
+}
+
+/** Makes the tab buttons of one tab list (the element holding them) show their own panel and hide the others. */
+export function setUpTabs(tabList) {
+  const tabs = [...tabList.querySelectorAll('[role=tab]')];
   for (const tab of tabs) tab.addEventListener('click', () => selectTab(tabs, tab));
 }
 
-/** Shows one of the sidebar's tabs by its button id. */
-export function showSidebarTab(tabId) {
-  selectTab([...document.querySelectorAll('#sidebar-tabs [role=tab]')], document.getElementById(tabId));
+/** Shows one of the sidebar's tabs, given its button. */
+export function showSidebarTab(tab) {
+  selectTab([...document.querySelectorAll('#sidebar-tabs [role=tab]')], tab);
 }
 
 /**
@@ -17,7 +27,7 @@ export function showSidebarTab(tabId) {
  */
 export function onShortcut(key, handler) {
   document.addEventListener('keydown', event => {
-    if (!(event.ctrlKey || event.metaKey) || document.getElementById('dialog').open) return;
+    if (!(event.ctrlKey || event.metaKey) || byId('dialog').open) return;
     if (event.key.toLowerCase() !== key.toLowerCase()) return;
     event.preventDefault();
     handler(event);
@@ -26,7 +36,7 @@ export function onShortcut(key, handler) {
 
 /** Shows a one-line notice under the sidebar's tools, with an Undo button when undo is given. */
 export function setNotice(text, undo) {
-  const notice = document.getElementById('notice');
+  const notice = byId('notice');
   notice.replaceChildren(text);
   if (!undo) return;
   const button = document.createElement('button');
@@ -42,6 +52,6 @@ function selectTab(tabs, tab) {
   for (const other of tabs) {
     const selected = other === tab;
     other.setAttribute('aria-selected', String(selected));
-    document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
+    byId(other.getAttribute('aria-controls')).hidden = !selected;
   }
 }

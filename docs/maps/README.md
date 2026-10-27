@@ -11,11 +11,12 @@ it exists, is explained in the [generated-maps skill](https://github.com/LogRaam
 | [`inventory.md`](inventory.md) | Does this function or constant already exist, and where? Every module by layer, every top-level declaration with its one-line doc. |
 | [`dependencies.md`](dependencies.md) | Who imports whom? Cycles first, then the layer rule (core never imports ui), then counts, then every edge. |
 | [`rules.md`](rules.md) | What does the app promise to do? Every test name, by file and `describe` block. |
-| [`export-format.md`](export-format.md) | **Contract.** What does a history export file hold? Every field, with its type. |
+| [`export-format.md`](export-format.md) | **Contract.** What does an export file hold? Every field, with its type. |
+| [`dom-ids.md`](dom-ids.md) | Which ids do `src/index.html` and the code share? Every id, where the template declares it, and every place that looks it up, each labelled with how it was found. |
 
 ## Which checks INFORM, and which BLOCK
 
-**Informing:** the four maps above, and `dist/postman-alternative.html` being built from the current sources. They fail, you
+**Informing:** the five maps above, and `dist/postman-alternative.html` being built from the current sources. They fail, you
 read the diff, you regenerate, you commit. Whatever the code says becomes the new truth.
 
 **Blocking:** regenerating does not make these green.
@@ -28,8 +29,11 @@ read the diff, you regenerate, you commit. Whatever the code says becomes the ne
   new optional field): a required new field makes every file the released version wrote fail to import, which
   is just as breaking as a removal. `tests/fixtures/export-v0.1-0dfa0d9.json`, written by the real v0.1 code,
   must keep importing; never regenerate it.
-- **Ratchets** (`tools/maps/ratchets.mjs`): modules in an import cycle (baseline 0) and imports from `src/core`
-  into another layer (baseline 0) may not grow.
+- **Ratchets** (`tools/maps/ratchets.mjs`): modules in an import cycle, imports from `src/core` into another
+  layer, source files of 300 lines and more, ids the code looks up that the template does not declare, and ids
+  declared twice. All at baseline 0; none may grow.
+- **UI tests** (`tests/ui.test.mjs`) drive the real page in headless Chrome or Edge with a fake server. Without a
+  browser they are skipped and say why; `SKIP_UI_TESTS=1` skips them for a fast run.
 
 The build (`tools/build.mjs`) blocks too, on its own: it joins every module into one script, so it refuses two
 modules declaring the same top-level name, aliased imports, `export default`, and modules nothing imports.
@@ -50,6 +54,8 @@ After bumping `version` in `package.json`: `npm run update-maps -- --record-rele
 ## What the maps cannot see
 
 - A behaviour that changed with no test changing: that is a missing test.
+- An id built at run time (`dom-ids.md`, "Computed lookups"). Pass `byId('literal')` where you can, so the map
+  can check it.
 - A module reaching another through a global rather than an import: the build joins everything into one scope,
   so only review catches it.
 - Whether `src/core` stays free of the DOM: no map checks for `document` or `window` there yet. Add a lens if it

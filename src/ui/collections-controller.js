@@ -5,14 +5,13 @@ import { addCollection, addFolder, addRequest, updateRequestDraft, renameItem, r
 import { makeId } from '../core/ids.js';
 import { renderCollections } from './collections-panel.js';
 import { askText, askSaveTarget } from './dialogs.js';
-import { onShortcut, setNotice, showSidebarTab } from './page.js';
+import { byId, onShortcut, setNotice, showSidebarTab } from './page.js';
 
 /** Wires saving and the Collections tab to the state. */
 export function startCollections(state) {
-  const $ = id => document.getElementById(id);
   const collections = () => state.get('collections');
 
-  const show = () => renderCollections($('collections'), collections(), state.get('openRequestId'), {
+  const show = () => renderCollections(byId('collections'), collections(), state.get('openRequestId'), {
     open: id => state.set({ draft: copyDraft(findRequest(collections(), id).request.draft), openRequestId: id }),
     addFolder: async collectionId => {
       const name = await askText({ title: 'New folder', label: 'Folder name', confirm: 'Add' });
@@ -49,15 +48,15 @@ export function startCollections(state) {
     const id = makeId();
     next = addRequest(next, { collectionId, folderId: target.folderId, name: target.name, draft, id });
     state.set({ collections: next, openRequestId: id });
-    showSidebarTab('tab-collections');
+    showSidebarTab(byId('tab-collections'));
     setNotice('Saved as ' + requestPath(next, id) + '.');
   }
 
-  $('save').addEventListener('click', () => save(false));
-  $('save-as').addEventListener('click', () => save(true));
+  byId('save').addEventListener('click', () => save(false));
+  byId('save-as').addEventListener('click', () => save(true));
   onShortcut('s', event => save(event.shiftKey));
-  $('new-request').addEventListener('click', () => state.set({ draft: emptyDraft(), openRequestId: null }));
-  $('new-collection').addEventListener('click', async () => {
+  byId('new-request').addEventListener('click', () => state.set({ draft: emptyDraft(), openRequestId: null }));
+  byId('new-collection').addEventListener('click', async () => {
     const name = await askText({ title: 'New collection', label: 'Collection name', confirm: 'Create' });
     if (name) state.set({ collections: addCollection(collections(), name, makeId()) });
   });

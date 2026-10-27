@@ -55,6 +55,17 @@ export function readModule(path, root = ROOT) {
   return { path, text, ast, comments, imports, declarations, header: fileHeader(comments, ast) };
 }
 
+/** Calls visit(node) on every node of a syntax tree, depth first. */
+export function walk(node, visit) {
+  if (!node || typeof node.type !== 'string') return;
+  visit(node);
+  for (const key of Object.keys(node)) {
+    const value = node[key];
+    if (Array.isArray(value)) for (const child of value) walk(child, visit);
+    else if (value && typeof value.type === 'string') walk(value, visit);
+  }
+}
+
 function declaredNames(node) {
   if (node.type === 'FunctionDeclaration' || node.type === 'ClassDeclaration') return [node.id.name];
   if (node.type === 'VariableDeclaration') return node.declarations.map(d => (d.id.type === 'Identifier' ? d.id.name : '(destructured)'));

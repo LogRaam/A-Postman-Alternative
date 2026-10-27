@@ -580,17 +580,27 @@ function keepLinksValid(values) {
 }
 
 // ---- src/ui/page.js ----
-/** Small page-wide helpers shared by the controllers: tabs, keyboard shortcuts, the notice line. */
+/** Small page-wide helpers shared by the controllers: elements by id, tabs, keyboard shortcuts, the notice line. */
 
-/** Makes the tab buttons of one tab list show their own panel and hide the others. */
-function setUpTabs(groupId) {
-  const tabs = [...document.getElementById(groupId).querySelectorAll('[role=tab]')];
+/**
+ * The element of src/index.html with this id. Throws, naming the id, when the template has none: a renamed id
+ * fails loudly here instead of leaving a button that silently does nothing. docs/maps/dom-ids.md lists them all.
+ */
+function byId(id) {
+  const element = document.getElementById(id);
+  if (!element) throw new Error('The page has no element with id "' + id + '" (see src/index.html).');
+  return element;
+}
+
+/** Makes the tab buttons of one tab list (the element holding them) show their own panel and hide the others. */
+function setUpTabs(tabList) {
+  const tabs = [...tabList.querySelectorAll('[role=tab]')];
   for (const tab of tabs) tab.addEventListener('click', () => selectTab(tabs, tab));
 }
 
-/** Shows one of the sidebar's tabs by its button id. */
-function showSidebarTab(tabId) {
-  selectTab([...document.querySelectorAll('#sidebar-tabs [role=tab]')], document.getElementById(tabId));
+/** Shows one of the sidebar's tabs, given its button. */
+function showSidebarTab(tab) {
+  selectTab([...document.querySelectorAll('#sidebar-tabs [role=tab]')], tab);
 }
 
 /**
@@ -599,7 +609,7 @@ function showSidebarTab(tabId) {
  */
 function onShortcut(key, handler) {
   document.addEventListener('keydown', event => {
-    if (!(event.ctrlKey || event.metaKey) || document.getElementById('dialog').open) return;
+    if (!(event.ctrlKey || event.metaKey) || byId('dialog').open) return;
     if (event.key.toLowerCase() !== key.toLowerCase()) return;
     event.preventDefault();
     handler(event);
@@ -608,7 +618,7 @@ function onShortcut(key, handler) {
 
 /** Shows a one-line notice under the sidebar's tools, with an Undo button when undo is given. */
 function setNotice(text, undo) {
-  const notice = document.getElementById('notice');
+  const notice = byId('notice');
   notice.replaceChildren(text);
   if (!undo) return;
   const button = document.createElement('button');
@@ -624,7 +634,7 @@ function selectTab(tabs, tab) {
   for (const other of tabs) {
     const selected = other === tab;
     other.setAttribute('aria-selected', String(selected));
-    document.getElementById(other.getAttribute('aria-controls')).hidden = !selected;
+    byId(other.getAttribute('aria-controls')).hidden = !selected;
   }
 }
 
@@ -940,50 +950,49 @@ function renderAuth(container, auth, onChange) {
 
 /** Wires the editor to the state: what the user types updates the draft; a draft loaded from elsewhere is shown. */
 function startEditor(state) {
-  const $ = id => document.getElementById(id);
-  const method = $('method');
+  const method = byId('method');
   for (const name of METHODS) method.append(new Option(name, name));
 
   // Typing changes the draft with origin "editor", so the fields being typed in are not redrawn under the cursor.
   const edit = changes => state.set({ draft: { ...state.get('draft'), ...changes } }, 'editor');
 
   method.addEventListener('change', () => edit({ method: method.value }));
-  $('url').addEventListener('input', () => edit({ url: $('url').value }));
-  $('body-mode').addEventListener('change', () => edit({ bodyMode: $('body-mode').value }));
-  $('body').addEventListener('input', () => edit({ body: $('body').value }));
+  byId('url').addEventListener('input', () => edit({ url: byId('url').value }));
+  byId('body-mode').addEventListener('change', () => edit({ bodyMode: byId('body-mode').value }));
+  byId('body').addEventListener('input', () => edit({ body: byId('body').value }));
 
   function showDraft() {
     const draft = state.get('draft');
     method.value = draft.method;
-    $('url').value = draft.url;
-    $('body-mode').value = draft.bodyMode;
-    $('body').value = draft.body;
-    renderRows($('params'), draft.params, rows => edit({ params: rows }), { keyPlaceholder: 'Parameter' });
-    renderRows($('headers'), draft.headers, rows => edit({ headers: rows }), { keyPlaceholder: 'Header', checkHeaders: true });
-    renderAuth($('auth'), draft.auth, auth => edit({ auth }));
+    byId('url').value = draft.url;
+    byId('body-mode').value = draft.bodyMode;
+    byId('body').value = draft.body;
+    renderRows(byId('params'), draft.params, rows => edit({ params: rows }), { keyPlaceholder: 'Parameter' });
+    renderRows(byId('headers'), draft.headers, rows => edit({ headers: rows }), { keyPlaceholder: 'Header', checkHeaders: true });
+    renderAuth(byId('auth'), draft.auth, auth => edit({ auth }));
     refresh();
   }
 
   /** Everything around the fields that depends on the draft, the open request or the environment. */
   function refresh() {
     const draft = state.get('draft');
-    $('body').hidden = draft.bodyMode === 'none';
-    $('body-hint').textContent = draft.bodyMode !== 'none' && methodTakesNoBody(draft.method)
+    byId('body').hidden = draft.bodyMode === 'none';
+    byId('body-hint').textContent = draft.bodyMode !== 'none' && methodTakesNoBody(draft.method)
       ? 'A ' + draft.method + ' request carries no body: this one will not be sent.'
       : '';
-    $('tab-params').textContent = 'Params' + countLabel(draft.params);
-    $('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
-    $('tab-auth').textContent = draft.auth.type === 'none' ? 'Auth' : 'Auth (' + draft.auth.type + ')';
+    byId('tab-params').textContent = 'Params' + countLabel(draft.params);
+    byId('tab-headers').textContent = 'Headers' + countLabel(draft.headers);
+    byId('tab-auth').textContent = draft.auth.type === 'none' ? 'Auth' : 'Auth (' + draft.auth.type + ')';
 
     // The line above the editor: which saved request is open, and whether the editor differs from it.
     const collections = state.get('collections');
     const found = state.get('openRequestId') && findRequest(collections, state.get('openRequestId'));
-    $('request-title').textContent = found ? requestPath(collections, found.request.id) : 'Unsaved request';
-    $('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
-    $('save-as').hidden = !found;
+    byId('request-title').textContent = found ? requestPath(collections, found.request.id) : 'Unsaved request';
+    byId('request-dirty').hidden = !found || sameDraft(found.request.draft, draft);
+    byId('save-as').hidden = !found;
 
     // Under the address: where the request will really go, when the address uses {{variables}}.
-    const preview = $('resolved-url');
+    const preview = byId('resolved-url');
     if (referencedNames(draft.url).length === 0) { preview.hidden = true; return; }
     const { draft: resolved, missing } = resolveDraft(draft, state.activeEnvironment());
     preview.hidden = false;
@@ -1137,40 +1146,38 @@ const REASONS = {
 
 /** Shows a response that came back: its bytes are the body as received, elapsed the time in milliseconds. */
 function showResponse(response, bytes, elapsed) {
-  const $ = id => document.getElementById(id);
-  $('response-empty').hidden = true;
-  $('response-error').hidden = true;
-  $('response-content').hidden = false;
-  const status = $('status');
+  byId('response-empty').hidden = true;
+  byId('response-error').hidden = true;
+  byId('response-content').hidden = false;
+  const status = byId('status');
   status.textContent = statusLabel(response.status, response.statusText);
   status.className = 'badge ' + statusClass(response.status);
-  $('time').textContent = formatDuration(elapsed);
-  $('size').textContent = formatBytes(bytes.byteLength);
+  byId('time').textContent = formatDuration(elapsed);
+  byId('size').textContent = formatBytes(bytes.byteLength);
   const body = prettyBody(new TextDecoder().decode(bytes));
-  $('response-body').textContent = body.text || '(empty body)';
-  $('response-body').dataset.kind = body.kind;
+  byId('response-body').textContent = body.text || '(empty body)';
+  byId('response-body').dataset.kind = body.kind;
   const rows = [];
   response.headers.forEach((value, name) => rows.push([name, value]));
-  $('response-headers').replaceChildren(...rows.map(([name, value]) => headerRow(name, value)));
-  $('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
-  $('headers-note').hidden = false;
+  byId('response-headers').replaceChildren(...rows.map(([name, value]) => headerRow(name, value)));
+  byId('tab-response-headers').textContent = 'Headers (' + rows.length + ')';
+  byId('headers-note').hidden = false;
 }
 
 /** Shows why there is no response: a request that could not be sent, or a send that failed. */
 function showError(message) {
-  const $ = id => document.getElementById(id);
-  $('response-empty').hidden = true;
-  $('response-content').hidden = true;
-  $('response-error').hidden = false;
-  $('response-error').textContent = message;
+  byId('response-empty').hidden = true;
+  byId('response-content').hidden = true;
+  byId('response-error').hidden = false;
+  byId('response-error').textContent = message;
 }
 
 /** Turns Send into Cancel while a request is in flight, and dims the last response. */
 function setSending(sending) {
-  const send = document.getElementById('send');
+  const send = byId('send');
   send.textContent = sending ? 'Cancel' : 'Send';
   send.classList.toggle('cancel', sending);
-  document.getElementById('response').classList.toggle('loading', sending);
+  byId('response').classList.toggle('loading', sending);
 }
 
 /** A table row: the header name in a <th>, its value in a <td>. */
@@ -1192,7 +1199,7 @@ function headerRow(name, value) {
 function startSender(state) {
   let inFlight = null;
 
-  document.getElementById('request-line').addEventListener('submit', event => {
+  byId('request-line').addEventListener('submit', event => {
     event.preventDefault();
     if (inFlight) inFlight.abort();
     else send();
@@ -1212,7 +1219,7 @@ function startSender(state) {
       return;
     }
     const warnings = [missingVariablesWarning(resolved.missing, state.activeEnvironment()), ...request.warnings].filter(Boolean);
-    document.getElementById('warnings').replaceChildren(...warnings.map(paragraph));
+    byId('warnings').replaceChildren(...warnings.map(paragraph));
     const sentAt = Date.now();
     inFlight = new AbortController();
     setSending(true);
@@ -1276,11 +1283,10 @@ function renderHistory(list, emptyNote, history, onOpen) {
 
 /** Draws the history whenever it changes and wires its Clear button. */
 function startHistory(state) {
-  const $ = id => document.getElementById(id);
-  const show = () => renderHistory($('history'), $('history-empty'), state.get('history'),
+  const show = () => renderHistory(byId('history'), byId('history-empty'), state.get('history'),
     entry => state.set({ draft: copyDraft(entry.draft), openRequestId: null }));
 
-  $('clear').addEventListener('click', () => {
+  byId('clear').addEventListener('click', () => {
     const kept = state.get('history');
     if (kept.length === 0) return;
     state.set({ history: [] });
@@ -1383,6 +1389,7 @@ function tool(symbol, title, onClick) {
 // ---- src/ui/dialogs.js ----
 /** Small modal questions built on the page's one <dialog>: a name to type, or where to save a request. */
 
+
 /**
  * Asks for one line of text. Resolves with the trimmed text, or null when cancelled or left blank.
  */
@@ -1435,7 +1442,7 @@ function askSaveTarget(collections, suggestedName) {
  * on confirm, null on cancel or Escape.
  */
 function openFormDialog(title, confirmLabel, build) {
-  const dialog = document.getElementById('dialog');
+  const dialog = byId('dialog');
   const form = document.createElement('form');
   form.method = 'dialog';
   const heading = document.createElement('h2');
@@ -1494,10 +1501,9 @@ function field(form, labelText, kind) {
 
 /** Wires saving and the Collections tab to the state. */
 function startCollections(state) {
-  const $ = id => document.getElementById(id);
   const collections = () => state.get('collections');
 
-  const show = () => renderCollections($('collections'), collections(), state.get('openRequestId'), {
+  const show = () => renderCollections(byId('collections'), collections(), state.get('openRequestId'), {
     open: id => state.set({ draft: copyDraft(findRequest(collections(), id).request.draft), openRequestId: id }),
     addFolder: async collectionId => {
       const name = await askText({ title: 'New folder', label: 'Folder name', confirm: 'Add' });
@@ -1534,15 +1540,15 @@ function startCollections(state) {
     const id = makeId();
     next = addRequest(next, { collectionId, folderId: target.folderId, name: target.name, draft, id });
     state.set({ collections: next, openRequestId: id });
-    showSidebarTab('tab-collections');
+    showSidebarTab(byId('tab-collections'));
     setNotice('Saved as ' + requestPath(next, id) + '.');
   }
 
-  $('save').addEventListener('click', () => save(false));
-  $('save-as').addEventListener('click', () => save(true));
+  byId('save').addEventListener('click', () => save(false));
+  byId('save-as').addEventListener('click', () => save(true));
   onShortcut('s', event => save(event.shiftKey));
-  $('new-request').addEventListener('click', () => state.set({ draft: emptyDraft(), openRequestId: null }));
-  $('new-collection').addEventListener('click', async () => {
+  byId('new-request').addEventListener('click', () => state.set({ draft: emptyDraft(), openRequestId: null }));
+  byId('new-collection').addEventListener('click', async () => {
     const name = await askText({ title: 'New collection', label: 'Collection name', confirm: 'Create' });
     if (name) state.set({ collections: addCollection(collections(), name, makeId()) });
   });
@@ -1643,14 +1649,14 @@ function smallButton(text, title) {
 
 /** Wires the picker and the manager to the state. */
 function startEnvironments(state) {
-  const picker = document.getElementById('environment');
+  const picker = byId('environment');
   const show = () => {
     picker.replaceChildren(new Option('No environment', ''), ...state.get('environments').map(e => new Option(e.name, e.id)));
     picker.value = state.get('activeEnvironmentId') || '';
   };
 
   picker.addEventListener('change', () => state.set({ activeEnvironmentId: picker.value || null }));
-  document.getElementById('manage-environments').addEventListener('click', async () => {
+  byId('manage-environments').addEventListener('click', async () => {
     const chosen = await manageEnvironments(state.get('environments'), state.get('activeEnvironmentId'),
       environments => state.set({ environments }));
     if (chosen) state.set({ activeEnvironmentId: chosen });
@@ -1788,9 +1794,7 @@ function jsonType(value) {
 
 /** Wires the Export and Import buttons to the state. */
 function startWorkspaceFile(state) {
-  const $ = id => document.getElementById(id);
-
-  $('export').addEventListener('click', () => {
+  byId('export').addEventListener('click', () => {
     const workspace = { history: state.get('history'), collections: state.get('collections'), environments: state.get('environments') };
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([serializeWorkspace(workspace, new Date().toISOString())], { type: 'application/json' }));
@@ -1799,10 +1803,10 @@ function startWorkspaceFile(state) {
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   });
 
-  $('import').addEventListener('click', () => $('import-file').click());
-  $('import-file').addEventListener('change', async () => {
-    const file = $('import-file').files[0];
-    $('import-file').value = '';
+  byId('import').addEventListener('click', () => byId('import-file').click());
+  byId('import-file').addEventListener('change', async () => {
+    const file = byId('import-file').files[0];
+    byId('import-file').value = '';
     if (!file) return;
     try {
       const imported = parseExport(await file.text());
@@ -1837,16 +1841,16 @@ function counts(state) {
 /** Starts the app once the page is loaded. */
 function startApp() {
   const state = createState();
-  setUpTabs('request-tabs');
-  setUpTabs('response-tabs');
-  setUpTabs('sidebar-tabs');
+  setUpTabs(byId('request-tabs'));
+  setUpTabs(byId('response-tabs'));
+  setUpTabs(byId('sidebar-tabs'));
   startEnvironments(state);
   startEditor(state);
   startSender(state);
   startHistory(state);
   startCollections(state);
   startWorkspaceFile(state);
-  showSidebarTab(state.get('collections').length ? 'tab-collections' : 'tab-history');
+  showSidebarTab(state.get('collections').length ? byId('tab-collections') : byId('tab-history'));
 }
 
 startApp();

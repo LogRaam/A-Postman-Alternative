@@ -6,13 +6,13 @@ import { explainFetchError } from '../core/errors.js';
 import { resolveDraft, missingVariablesWarning } from '../core/environments.js';
 import { historyEntry, addToHistory } from '../core/history.js';
 import { showResponse, showError, setSending } from './response-view.js';
-import { onShortcut } from './page.js';
+import { byId, onShortcut } from './page.js';
 
 /** Wires the Send button and Ctrl+Enter to the state's draft and active environment. */
 export function startSender(state) {
   let inFlight = null;
 
-  document.getElementById('request-line').addEventListener('submit', event => {
+  byId('request-line').addEventListener('submit', event => {
     event.preventDefault();
     if (inFlight) inFlight.abort();
     else send();
@@ -32,7 +32,7 @@ export function startSender(state) {
       return;
     }
     const warnings = [missingVariablesWarning(resolved.missing, state.activeEnvironment()), ...request.warnings].filter(Boolean);
-    document.getElementById('warnings').replaceChildren(...warnings.map(paragraph));
+    byId('warnings').replaceChildren(...warnings.map(paragraph));
     const sentAt = Date.now();
     inFlight = new AbortController();
     setSending(true);

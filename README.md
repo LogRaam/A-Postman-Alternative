@@ -38,7 +38,7 @@ to keep.
 Requires Node.js 20 or later. There is no `npm install`: the project has no dependencies.
 
 ```
-npm test               # unit tests, maps, build freshness, format guard, ratchets
+npm test               # unit tests, UI tests in headless Chrome or Edge, maps, format guard, ratchets
 npm run build          # writes dist/postman-alternative.html from src/
 npm run update-maps    # regenerates docs/maps and prints what moved
 ```

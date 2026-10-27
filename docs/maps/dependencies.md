@@ -23,9 +23,9 @@ None.
 ## Imported by the most modules
 
 - `src/core/draft.js`: 9
+- `src/ui/page.js`: 9
 - `src/core/rows.js`: 6
 - `src/core/collections.js`: 5
-- `src/ui/page.js`: 5
 - `src/core/environments.js`: 4
 - `src/core/auth.js`: 3
 - `src/core/history.js`: 3
@@ -56,7 +56,7 @@ None.
 ## Importing the most modules
 
 - `src/ui/app.js`: 8
-- `src/ui/editor.js`: 7
+- `src/ui/editor.js`: 8
 - `src/ui/sender.js`: 7
 - `src/ui/collections-controller.js`: 6
 - `src/ui/workspace-file.js`: 5
@@ -69,12 +69,13 @@ None.
 - `src/ui/state.js`: 3
 - `src/core/collections.js`: 2
 - `src/core/history.js`: 2
+- `src/ui/environments-controller.js`: 2
 - `src/ui/history-panel.js`: 2
+- `src/ui/response-view.js`: 2
 - `src/core/url.js`: 1
 - `src/ui/auth-editor.js`: 1
 - `src/ui/collections-panel.js`: 1
-- `src/ui/environments-controller.js`: 1
-- `src/ui/response-view.js`: 1
+- `src/ui/dialogs.js`: 1
 - `src/ui/rows-editor.js`: 1
 
 ## Every edge
@@ -102,7 +103,7 @@ None.
 | `src/ui/app.js` | `src/ui/editor.js` | `startEditor` |
 | `src/ui/app.js` | `src/ui/environments-controller.js` | `startEnvironments` |
 | `src/ui/app.js` | `src/ui/history-controller.js` | `startHistory` |
-| `src/ui/app.js` | `src/ui/page.js` | `setUpTabs`, `showSidebarTab` |
+| `src/ui/app.js` | `src/ui/page.js` | `byId`, `setUpTabs`, `showSidebarTab` |
 | `src/ui/app.js` | `src/ui/sender.js` | `startSender` |
 | `src/ui/app.js` | `src/ui/state.js` | `createState` |
 | `src/ui/app.js` | `src/ui/workspace-file.js` | `startWorkspaceFile` |
@@ -112,33 +113,37 @@ None.
 | `src/ui/collections-controller.js` | `src/core/ids.js` | `makeId` |
 | `src/ui/collections-controller.js` | `src/ui/collections-panel.js` | `renderCollections` |
 | `src/ui/collections-controller.js` | `src/ui/dialogs.js` | `askSaveTarget`, `askText` |
-| `src/ui/collections-controller.js` | `src/ui/page.js` | `onShortcut`, `setNotice`, `showSidebarTab` |
+| `src/ui/collections-controller.js` | `src/ui/page.js` | `byId`, `onShortcut`, `setNotice`, `showSidebarTab` |
 | `src/ui/collections-panel.js` | `src/core/collections.js` | `requestsIn` |
+| `src/ui/dialogs.js` | `src/ui/page.js` | `byId` |
 | `src/ui/editor.js` | `src/core/collections.js` | `findRequest`, `requestPath` |
 | `src/ui/editor.js` | `src/core/draft.js` | `sameDraft` |
 | `src/ui/editor.js` | `src/core/environments.js` | `missingVariablesWarning`, `referencedNames`, `resolveDraft` |
 | `src/ui/editor.js` | `src/core/request.js` | `METHODS`, `methodTakesNoBody` |
 | `src/ui/editor.js` | `src/core/rows.js` | `enabledRows` |
 | `src/ui/editor.js` | `src/ui/auth-editor.js` | `renderAuth` |
+| `src/ui/editor.js` | `src/ui/page.js` | `byId` |
 | `src/ui/editor.js` | `src/ui/rows-editor.js` | `renderRows` |
 | `src/ui/environments-controller.js` | `src/ui/environments-dialog.js` | `manageEnvironments` |
+| `src/ui/environments-controller.js` | `src/ui/page.js` | `byId` |
 | `src/ui/environments-dialog.js` | `src/core/environments.js` | `addEnvironment`, `removeEnvironment`, `renameEnvironment`, `setVariables` |
 | `src/ui/environments-dialog.js` | `src/core/ids.js` | `makeId` |
 | `src/ui/environments-dialog.js` | `src/ui/dialogs.js` | `openFormDialog` |
 | `src/ui/environments-dialog.js` | `src/ui/rows-editor.js` | `renderRows` |
 | `src/ui/history-controller.js` | `src/core/draft.js` | `copyDraft` |
 | `src/ui/history-controller.js` | `src/ui/history-panel.js` | `renderHistory` |
-| `src/ui/history-controller.js` | `src/ui/page.js` | `setNotice` |
+| `src/ui/history-controller.js` | `src/ui/page.js` | `byId`, `setNotice` |
 | `src/ui/history-panel.js` | `src/core/history.js` | `historyLabel` |
 | `src/ui/history-panel.js` | `src/core/response.js` | `statusClass` |
 | `src/ui/response-view.js` | `src/core/response.js` | `formatBytes`, `formatDuration`, `prettyBody`, `statusClass`, `statusLabel` |
+| `src/ui/response-view.js` | `src/ui/page.js` | `byId` |
 | `src/ui/rows-editor.js` | `src/core/request.js` | `isForbiddenHeader` |
 | `src/ui/sender.js` | `src/core/draft.js` | `copyDraft` |
 | `src/ui/sender.js` | `src/core/environments.js` | `missingVariablesWarning`, `resolveDraft` |
 | `src/ui/sender.js` | `src/core/errors.js` | `explainFetchError` |
 | `src/ui/sender.js` | `src/core/history.js` | `addToHistory`, `historyEntry` |
 | `src/ui/sender.js` | `src/core/request.js` | `toFetchRequest` |
-| `src/ui/sender.js` | `src/ui/page.js` | `onShortcut` |
+| `src/ui/sender.js` | `src/ui/page.js` | `byId`, `onShortcut` |
 | `src/ui/sender.js` | `src/ui/response-view.js` | `setSending`, `showError`, `showResponse` |
 | `src/ui/state.js` | `src/core/collections.js` | `findRequest` |
 | `src/ui/state.js` | `src/core/draft.js` | `copyDraft`, `emptyDraft` |
@@ -147,4 +152,4 @@ None.
 | `src/ui/workspace-file.js` | `src/core/environments.js` | `mergeEnvironments` |
 | `src/ui/workspace-file.js` | `src/core/export-format.js` | `parseExport`, `serializeWorkspace` |
 | `src/ui/workspace-file.js` | `src/core/history.js` | `mergeHistory` |
-| `src/ui/workspace-file.js` | `src/ui/page.js` | `setNotice` |
+| `src/ui/workspace-file.js` | `src/ui/page.js` | `byId`, `setNotice` |

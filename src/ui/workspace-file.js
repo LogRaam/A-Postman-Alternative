@@ -4,13 +4,11 @@ import { serializeWorkspace, parseExport } from '../core/export-format.js';
 import { mergeHistory } from '../core/history.js';
 import { mergeCollections } from '../core/collections.js';
 import { mergeEnvironments } from '../core/environments.js';
-import { setNotice } from './page.js';
+import { byId, setNotice } from './page.js';
 
 /** Wires the Export and Import buttons to the state. */
 export function startWorkspaceFile(state) {
-  const $ = id => document.getElementById(id);
-
-  $('export').addEventListener('click', () => {
+  byId('export').addEventListener('click', () => {
     const workspace = { history: state.get('history'), collections: state.get('collections'), environments: state.get('environments') };
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([serializeWorkspace(workspace, new Date().toISOString())], { type: 'application/json' }));
@@ -19,10 +17,10 @@ export function startWorkspaceFile(state) {
     setTimeout(() => URL.revokeObjectURL(link.href), 1000);
   });
 
-  $('import').addEventListener('click', () => $('import-file').click());
-  $('import-file').addEventListener('change', async () => {
-    const file = $('import-file').files[0];
-    $('import-file').value = '';
+  byId('import').addEventListener('click', () => byId('import-file').click());
+  byId('import-file').addEventListener('change', async () => {
+    const file = byId('import-file').files[0];
+    byId('import-file').value = '';
     if (!file) return;
     try {
       const imported = parseExport(await file.text());

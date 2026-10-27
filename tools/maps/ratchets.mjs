@@ -5,6 +5,7 @@
 import { importEdges, cycles, layerViolations } from './dependencies.mjs';
 import { LARGE_FILE_LINES, lineCount } from './inventory.mjs';
 import { listFiles, readText } from '../source.mjs';
+import { missingIds, duplicateIds } from './dom-ids.mjs';
 
 export const RATCHETS = [
   {
@@ -24,6 +25,16 @@ export const RATCHETS = [
     baseline: 0,
     measure: root => listFiles('src', '.js', root).filter(path => lineCount(readText(path, root)) >= LARGE_FILE_LINES).length,
   },
+  {
+    name: 'ids the code refers to that src/index.html does not declare',
+    baseline: 0,
+    measure: root => missingIds(root).length,
+  },
+  {
+    name: 'ids declared more than once in src/index.html',
+    baseline: 0,
+    measure: root => duplicateIds(root).length,
+  },
 ];
 
 /** One line per ratchet that is not exactly at its baseline; empty when all hold. */
@@ -31,7 +42,7 @@ export function ratchetProblems(root) {
   const problems = [];
   for (const ratchet of RATCHETS) {
     const now = ratchet.measure(root);
-    if (now > ratchet.baseline) problems.push('Ratchet broken: ' + ratchet.name + ' went from ' + ratchet.baseline + ' to ' + now + '. Change the code; see docs/maps/dependencies.md.');
+    if (now > ratchet.baseline) problems.push('Ratchet broken: ' + ratchet.name + ' went from ' + ratchet.baseline + ' to ' + now + '. Change the code; the matching map in docs/maps/ shows where.');
     if (now < ratchet.baseline) problems.push('Ratchet improved: ' + ratchet.name + ' is now ' + now + '. Lower its baseline in tools/maps/ratchets.mjs in this commit.');
   }
   return problems;

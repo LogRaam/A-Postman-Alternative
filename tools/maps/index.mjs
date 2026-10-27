@@ -7,12 +7,14 @@ import { generateInventory } from './inventory.mjs';
 import { generateDependencies } from './dependencies.mjs';
 import { generateRules } from './rules.mjs';
 import { generateExportFormat } from './export-format.mjs';
+import { generateDomIds } from './dom-ids.mjs';
 
 export const MAPS = [
   { file: 'docs/maps/inventory.md', generate: generateInventory },
   { file: 'docs/maps/dependencies.md', generate: generateDependencies },
   { file: 'docs/maps/rules.md', generate: generateRules },
   { file: 'docs/maps/export-format.md', generate: generateExportFormat },
+  { file: 'docs/maps/dom-ids.md', generate: generateDomIds },
 ];
 
 /**

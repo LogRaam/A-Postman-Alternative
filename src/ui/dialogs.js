@@ -1,5 +1,7 @@
 /** Small modal questions built on the page's one <dialog>: a name to type, or where to save a request. */
 
+import { byId } from './page.js';
+
 /**
  * Asks for one line of text. Resolves with the trimmed text, or null when cancelled or left blank.
  */
@@ -52,7 +54,7 @@ export function askSaveTarget(collections, suggestedName) {
  * on confirm, null on cancel or Escape.
  */
 export function openFormDialog(title, confirmLabel, build) {
-  const dialog = document.getElementById('dialog');
+  const dialog = byId('dialog');
   const form = document.createElement('form');
   form.method = 'dialog';
   const heading = document.createElement('h2');
